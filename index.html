@@ -415,7 +415,7 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       <div class="game-filter" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <select id="game-filter-sel" onchange="onGameFilterChange()" style="max-width:160px">
           <option value="all">모든 경기</option>
-          <option value="1경기">1경기</option><option value="2경기">2경기</option><option value="3경기">3경기</option><option value="4경기">4경기</option><option value="5경기">5경기</option><option value="6경기">6경기</option><option value="7경기">7경기</option><option value="8경기">8경기</option><option value="9경기">9경기</option><option value="10경기">10경기</option><option value="11경기">11경기</option><option value="12경기">12경기</option>
+          <option value="1경기">1경기</option><option value="2경기">2경기</option><option value="3경기">3경기</option><option value="4경기">4경기</option><option value="5경기">5경기</option><option value="6경기">6경기</option><option value="7경기">7경기</option><option value="8경기">8경기</option><option value="9경기">9경기</option><option value="10경기">10경기</option>
         </select>
         <select id="round-filter-sel" onchange="renderBracket()" style="max-width:120px">
           <option value="all">모든 라운드</option>
@@ -425,7 +425,7 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
           <option value="준결승">준결승</option>
           <option value="결승">결승</option>
         </select>
-        <button class="btn btn-sm btn-accent" onclick="manualSeedNext()" id="seed-next-btn" style="display:none">대진 편성</button>
+        <button class="btn btn-sm btn-accent" id="btn-lineup" onclick="manualSeedNext()" style="display:none">출전 선수 선택 / 대진 편성</button>
       </div>
       <div id="bracket-view"></div>
     </div>
@@ -433,14 +433,14 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       <div class="game-filter">
         <select id="hist-filter-sel" onchange="renderHistory()" style="max-width:160px">
           <option value="all">모든 경기</option>
-          <option value="1경기">1경기</option><option value="2경기">2경기</option><option value="3경기">3경기</option><option value="4경기">4경기</option><option value="5경기">5경기</option><option value="6경기">6경기</option><option value="7경기">7경기</option><option value="8경기">8경기</option><option value="9경기">9경기</option><option value="10경기">10경기</option><option value="11경기">11경기</option><option value="12경기">12경기</option>
+          <option value="1경기">1경기</option><option value="2경기">2경기</option><option value="3경기">3경기</option><option value="4경기">4경기</option><option value="5경기">5경기</option><option value="6경기">6경기</option><option value="7경기">7경기</option><option value="8경기">8경기</option><option value="9경기">9경기</option><option value="10경기">10경기</option>
         </select>
       </div>
       <div class="card" style="margin-bottom:12px">
         <div class="sec-label">경기 설정</div>
         <div class="frow"><label>경기 번호</label>
           <select id="m-gamenum">
-<option>1경기</option><option>2경기</option><option>3경기</option><option>4경기</option><option>5경기</option><option>6경기</option><option>7경기</option><option>8경기</option><option>9경기</option><option>10경기</option><option>11경기</option><option>12경기</option>
+<option>1경기</option><option>2경기</option><option>3경기</option><option>4경기</option><option>5경기</option><option>6경기</option><option>7경기</option><option>8경기</option><option>9경기</option><option>10경기</option><option>11경기</option><option>12경기</option><option>13경기</option><option>14경기</option><option>15경기</option><option>16경기</option><option>17경기</option><option>18경기</option><option>19경기</option><option>20경기</option><option>21경기</option><option>22경기</option><option>23경기</option><option>24경기</option><option>25경기</option>
           </select>
         </div>
         <div class="frow"><label>라운드</label>
@@ -506,7 +506,7 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       <div class="sec-label" style="margin:0;flex:1">경기 기록</div>
       <select id="hist-tab-filter" onchange="renderHistoryTab()" style="max-width:140px;padding:5px 10px;font-size:12px">
         <option value="all">모든 경기</option>
-<option value="1경기">1경기</option><option value="2경기">2경기</option><option value="3경기">3경기</option><option value="4경기">4경기</option><option value="5경기">5경기</option><option value="6경기">6경기</option><option value="7경기">7경기</option><option value="8경기">8경기</option><option value="9경기">9경기</option><option value="10경기">10경기</option><option value="11경기">11경기</option><option value="12경기">12경기</option>
+<option value="1경기">1경기</option><option value="2경기">2경기</option><option value="3경기">3경기</option><option value="4경기">4경기</option><option value="5경기">5경기</option><option value="6경기">6경기</option><option value="7경기">7경기</option><option value="8경기">8경기</option><option value="9경기">9경기</option><option value="10경기">10경기</option>
       </select>
     </div>
     <div class="card" style="padding:0 18px" id="history-body"></div>
@@ -668,6 +668,7 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
 <div id="sync-badge" class="sync-badge"></div>
 
 <!-- MODALS -->
+
 <!-- 중계자료 MODAL -->
 <div id="modal-broadcast" class="moverlay hidden" onclick="if(event.target===this)closeBroadcast()">
   <div class="mbox" style="max-width:680px;max-height:90vh;overflow-y:auto">
@@ -729,16 +730,16 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       <p style="margin-bottom:8px">• 라운드 시즌 포인트는 경기 결승 종료 후 순위 기준 일괄 지급.</p>
       <div style="background:var(--bg3);border-radius:var(--r);padding:10px 12px;font-family:'DM Mono',monospace;font-size:11px;line-height:1.9">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">
-          <span><span style="color:var(--accent)">1위</span>  100pt</span><span><span style="color:var(--text3)">11위</span> 23pt</span>
-          <span><span style="color:var(--text3)">2위</span>   90pt</span><span><span style="color:var(--text3)">12위</span> 21pt</span>
-          <span><span style="color:var(--text3)">3위</span>   80pt</span><span><span style="color:var(--text3)">13위</span> 19pt</span>
-          <span><span style="color:var(--text3)">4위</span>   70pt</span><span><span style="color:var(--text3)">14위</span> 17pt</span>
-          <span><span style="color:var(--text3)">5위</span>   50pt</span><span><span style="color:var(--text3)">15위</span> 15pt</span>
-          <span><span style="color:var(--text3)">6위</span>   45pt</span><span><span style="color:var(--text3)">16위</span> 13pt</span>
-          <span><span style="color:var(--text3)">7위</span>   40pt</span><span><span style="color:var(--text3)">17위</span> 10pt</span>
-          <span><span style="color:var(--text3)">8위</span>   35pt</span><span><span style="color:var(--text3)">18위</span>  5pt</span>
-          <span><span style="color:var(--text3)">9위</span>   30pt</span><span><span style="color:var(--text3)">19위</span>  3pt</span>
-          <span><span style="color:var(--text3)">10위</span>  25pt</span><span><span style="color:var(--text3)">20위</span>  1pt</span>
+          <span><span style="color:var(--accent)">1위</span>  500pt</span><span><span style="color:var(--text3)">11위</span> 26pt</span>
+          <span><span style="color:var(--text3)">2위</span>  350pt</span><span><span style="color:var(--text3)">12위</span> 24pt</span>
+          <span><span style="color:var(--text3)">3위</span>  200pt</span><span><span style="color:var(--text3)">13위</span> 22pt</span>
+          <span><span style="color:var(--text3)">4위</span>  180pt</span><span><span style="color:var(--text3)">14위</span> 20pt</span>
+          <span><span style="color:var(--text3)">5위</span>  120pt</span><span><span style="color:var(--text3)">15위</span> 18pt</span>
+          <span><span style="color:var(--text3)">6위</span>   90pt</span><span><span style="color:var(--text3)">16위</span> 16pt</span>
+          <span><span style="color:var(--text3)">7위</span>   75pt</span><span><span style="color:var(--text3)">17위</span>  4pt</span>
+          <span><span style="color:var(--text3)">8위</span>   60pt</span><span><span style="color:var(--text3)">18위</span>  3pt</span>
+          <span><span style="color:var(--text3)">9위</span>   30pt</span><span><span style="color:var(--text3)">19위</span>  2pt</span>
+          <span><span style="color:var(--text3)">10위</span>  28pt</span><span><span style="color:var(--text3)">20위</span>  1pt</span>
         </div>
       </div>
 
@@ -752,7 +753,7 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       <p style="margin-bottom:4px">팀 가치 평점 = 팀 소속 전체 선수의 가치 평점 합산</p>
 
       <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin:12px 0 6px">시즌 운영</div>
-      <p style="margin-bottom:4px">• 총 <b style="color:var(--text)">12경기</b> 진행.</p>
+      <p style="margin-bottom:4px">• 총 <b style="color:var(--text)">25경기</b> 진행.</p>
       <p style="margin-bottom:4px">• 승점 상위 8명이 플레이오프 진출.</p>
       <p style="margin-bottom:4px">• 동점 시 공동 순위 부여.</p>
       <p>• 누적/평균 점수는 시드 보너스 제외 원점수 기준.</p>
@@ -869,8 +870,8 @@ const ELIM_ROUNDS=['16강전','8강전','준결승','결승'];
 const AB=['rgba(91,156,246,.15)','rgba(76,175,125,.15)','rgba(212,240,76,.12)','rgba(255,179,64,.15)','rgba(168,99,255,.15)','rgba(255,92,92,.12)','rgba(45,212,191,.15)'];
 const AT=['#5b9cf6','#4caf7d','#a8c23a','#ffb340','#a863ff','#ff5c5c','#2dd4bf'];
 // Team color map
-const TEAM_BG={'ITA':'rgba(34,197,94,.2)','KIA':'rgba(239,68,68,.2)','현대':'rgba(156,163,175,.2)','롯데':'rgba(29,78,216,.2)','SSG':'rgba(220,38,38,.2)','한화':'rgba(249,115,22,.2)','LG':'rgba(147,51,234,.2)','카카오':'rgba(234,179,8,.2)'};
-const TEAM_TX={'ITA':'#16a34a','KIA':'#b91c1c','현대':'#9ca3af','롯데':'#3b82f6','SSG':'#ef4444','한화':'#f97316','LG':'#a855f7','카카오':'#eab308'};
+const TEAM_BG={'ITA':'rgba(34,197,94,.2)','KIA':'rgba(239,68,68,.2)','현대':'rgba(156,163,175,.2)','롯데':'rgba(29,78,216,.2)','SSG':'rgba(220,38,38,.2)','한화':'rgba(249,115,22,.2)','LG':'rgba(147,51,234,.2)','카카오':'rgba(234,179,8,.2)','삼성':'rgba(29,78,216,.25)','KT':'rgba(30,30,30,.6)'};
+const TEAM_TX={'ITA':'#16a34a','KIA':'#b91c1c','현대':'#9ca3af','롯데':'#3b82f6','SSG':'#ef4444','한화':'#f97316','LG':'#a855f7','카카오':'#eab308','삼성':'#60a5fa','KT':'#d1d5db'};
 function teamColor(teamName){const k=Object.keys(TEAM_BG).find(k=>teamName&&teamName.includes(k));return k?{bg:TEAM_BG[k],tx:TEAM_TX[k]}:null;}
 function avcTeam(p,i){const tc=teamColor(p.team||'');return tc||{bg:AB[i%AB.length],tx:AT[i%AT.length]};}
 
@@ -1292,9 +1293,9 @@ function showSyncBadge(msg){
   clearTimeout(el._t);
   el._t=setTimeout(()=>el.classList.remove('show'),2500);
 }
-// Firebase 브릿지 window 노출 (window.onload 전에 등록)
+// Firebase 브릿지 window 노출
 window.repairBracket = repairBracket;
-window.refreshAll = () => refreshAll();
+window.refreshAll = refreshAll;
 window.showSyncBadge = showSyncBadge;
 
 window.onload=()=>{
@@ -1302,7 +1303,6 @@ window.onload=()=>{
   repairBracket();
   if(S.init){showView('view-main');refreshAll();}
   else{showView('view-setup');renderSetupList();}
-  // Firebase 모듈이 로드됐으면 연결, 아직이면 준비될 때까지 대기
   if(typeof window.connectFirebase==='function')window.connectFirebase();
   else{const t=setInterval(()=>{if(typeof window.connectFirebase==='function'){window.connectFirebase();clearInterval(t);}},50);}
 };
@@ -1327,29 +1327,49 @@ function setupRem(i){setupPs.splice(i,1);renderSetupList();}
 function startApp(){
   if(setupPs.length<2){alert('최소 2명이 필요합니다.');return;}
   S.players=setupPs;S.init=true;S.matches=[];buildBracket();save();showView('view-main');refreshAll();
+  setTimeout(()=>openLineupFor(S.bracket[0]),400);
 }
 
 // ─── BRACKET BUILD ───
 function buildBracket(){
   S.bracket=[];
-  for(let g=1;g<=12;g++){
+  for(let g=1;g<=10;g++){
     const gn=g+'경기';
     const rounds=ROUNDS.map(rt=>{
       const cnt=rt==='예선전'?16:rt==='16강전'?8:rt==='8강전'?4:rt==='준결승'?2:1;
-      return{roundType:rt,matches:Array.from({length:cnt},(_,i)=>({id:uid(),gameNum:gn,roundType:rt,matchIdx:i,p1id:null,p2id:null,done:false,winnerId:null,p1prevScore:0,p2prevScore:0}))};
+      return{roundType:rt,matches:Array.from({length:cnt},(_,mi)=>({
+        id:uid(),gameNum:gn,roundType:rt,matchIdx:mi,
+        p1id:null,p2id:null,done:false,winnerId:null,
+        p1prevScore:0,p2prevScore:0
+      }))};
     });
-    S.bracket.push({gameNum:gn,rounds,seeded:false});
+    S.bracket.push({gameNum:gn,rounds,seeded:false,lineup:{}});
   }
-  seedFirstGame();
 }
-function seedFirstGame(){
-  if(!S.bracket.length||!S.players.length)return;
-  const bg=S.bracket[0];if(bg.seeded)return;
-  const ps=[...S.players];shuffle(ps);
-  bg.rounds[0].matches.forEach((m,i)=>{m.p1id=ps[i*2]?ps[i*2].id:null;m.p2id=ps[i*2+1]?ps[i*2+1].id:null;});
-  bg.seeded=true;
+function getFourManTeamIdxs(gameNumStr){
+  const g=parseInt(gameNumStr);
+  const map={1:[0,1],2:[2,3],3:[4,5],4:[6,7],5:[8,9],6:[0,1],7:[2,3],8:[4,5],9:[6,7],10:[8,9]};
+  return map[g]||[];
+}
+function getTeamList(){
+  const names=[];
+  S.players.forEach(p=>{const t=p.team||'팀 없음';if(!names.includes(t))names.push(t);});
+  return names;
 }
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}}
+function seedGame(bg,lineupMap){
+  const players=[];
+  getTeamList().forEach(tn=>{
+    (lineupMap[tn]||[]).forEach(id=>{const p=S.players.find(x=>x.id===id);if(p)players.push(p);});
+  });
+  shuffle(players);
+  bg.rounds[0].matches.forEach((m,i)=>{
+    m.p1id=players[i*2]?players[i*2].id:null;
+    m.p2id=players[i*2+1]?players[i*2+1].id:null;
+    m.p1prevScore=0;m.p2prevScore=0;
+  });
+  bg.seeded=true;bg.lineup=lineupMap;
+}
 
 // ─── NAV ───
 function gotoTab(name,btn){
@@ -1735,38 +1755,261 @@ function renderBracket(){
   });
   el.innerHTML=html;
 
-  // 대진 편성 버튼: 이전 경기 결승 완료 + 다음 경기 미편성일 때 표시
-  const seedBtn=document.getElementById('seed-next-btn');
+  // 대진 편성 버튼: 첫 경기 미편성이거나 이전 경기 완료+다음 미편성
+  const seedBtn=document.getElementById('btn-lineup');
   if(seedBtn){
-    let showSeedBtn=false;
-    for(let i=0;i<S.bracket.length-1;i++){
-      if(isGDone(S.bracket[i])&&!S.bracket[i+1].seeded){showSeedBtn=true;break;}
+    let showSeedBtn=S.bracket.length>0&&!S.bracket[0].seeded;
+    if(!showSeedBtn){
+      for(let i=0;i<S.bracket.length-1;i++){
+        if(isGDone(S.bracket[i])&&!S.bracket[i+1].seeded){showSeedBtn=true;break;}
+      }
     }
     seedBtn.style.display=showSeedBtn?'':'none';
   }
 }
 
+function openLineupFor(bg){
+  if(!bg)return;
+  window._lineupBg=bg;
+
+  // 기존 팝업 제거
+  var old=document.getElementById('lineup-popup');
+  if(old)old.parentNode.removeChild(old);
+
+  var gameNum=parseInt(bg.gameNum);
+  var fourMap={1:[0,1],2:[2,3],3:[4,5],4:[6,7],5:[8,9],6:[0,1],7:[2,3],8:[4,5],9:[6,7],10:[8,9]};
+  var fourIdxs=fourMap[gameNum]||[];
+  var allTeams=[];
+  S.players.forEach(function(p){
+    var t=p.team||'팀 없음';
+    if(allTeams.indexOf(t)<0)allTeams.push(t);
+  });
+  var fourTeams=fourIdxs.map(function(i){return allTeams[i];}).filter(Boolean);
+  var prev=bg.lineup||{};
+
+  // ── 오버레이 (createElement) ──────────────────────────
+  var overlay=document.createElement('div');
+  overlay.id='lineup-popup';
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px;box-sizing:border-box';
+
+  // ── 내부 박스 ──────────────────────────────────────────
+  var box=document.createElement('div');
+  box.style.cssText='background:#1c1c1c;border-radius:12px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;padding:20px;box-sizing:border-box';
+
+  // ── 헤더 ──────────────────────────────────────────────
+  var header=document.createElement('div');
+  header.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:12px';
+
+  var title=document.createElement('b');
+  title.style.cssText='font-size:16px;color:#fff';
+  title.textContent=bg.gameNum+' 출전 선수 선택';
+
+  var closeBtn=document.createElement('button');
+  closeBtn.style.cssText='background:#444;border:none;color:#fff;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px';
+  closeBtn.textContent='닫기';
+  closeBtn.addEventListener('click', closeLineupPopup);
+
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+  box.appendChild(header);
+
+  // ── 설명 ──────────────────────────────────────────────
+  if(fourTeams.length){
+    var fourNote=document.createElement('p');
+    fourNote.style.cssText='font-size:12px;color:#c8f000;margin:0 0 6px';
+    fourNote.textContent='4명 전원 출전: '+fourTeams.join(', ');
+    box.appendChild(fourNote);
+  }
+  var note=document.createElement('p');
+  note.style.cssText='font-size:11px;color:#888;margin:0 0 14px';
+  note.textContent='각 팀에서 3명 선택. 3명 미만 시 나머지는 무작위 자동 배정.';
+  box.appendChild(note);
+
+  // ── 팀별 선수 목록 ────────────────────────────────────
+  allTeams.forEach(function(tn){
+    var players=S.players.filter(function(p){return (p.team||'팀 없음')===tn;});
+    if(!players.length)return;
+    var isFour=fourTeams.indexOf(tn)>=0;
+    var prevSel=prev[tn]||[];
+    var sk=tn.replace(/[^가-힣a-zA-Z0-9]/g,'_');
+
+    var teamBox=document.createElement('div');
+    teamBox.style.cssText='background:#252525;border-radius:8px;padding:10px 14px;margin-bottom:8px';
+
+    // 팀 헤더
+    var tHead=document.createElement('div');
+    tHead.style.cssText='display:flex;align-items:center;margin-bottom:6px;gap:8px';
+    var tName=document.createElement('span');
+    tName.style.cssText='font-weight:600;color:#fff;font-size:14px';
+    tName.textContent=tn;
+    var tCount=document.createElement('span');
+    tCount.id='lp-cnt-'+sk;
+    tCount.style.cssText='font-size:11px;color:#888';
+    tCount.textContent=isFour?'('+players.length+'명 전원)':'('+prevSel.length+'명 선택)';
+    var tTag=document.createElement('span');
+    tTag.style.cssText='font-size:10px;margin-left:auto;'+(isFour?'color:#c8f000':'color:#888');
+    tTag.textContent=isFour?'4명 전원':'3명 선택';
+    tHead.appendChild(tName);
+    tHead.appendChild(tCount);
+    tHead.appendChild(tTag);
+    teamBox.appendChild(tHead);
+
+    // 선수 목록
+    players.forEach(function(p){
+      var isChecked=isFour||(prevSel.indexOf(p.id)>=0);
+      var row=document.createElement('label');
+      row.style.cssText='display:flex;align-items:center;gap:12px;padding:6px 0;border-top:1px solid #333;cursor:'+(isFour?'default':'pointer');
+
+      var cb=document.createElement('input');
+      cb.type='checkbox';
+      cb.className='lp-cb';
+      cb.setAttribute('data-team',tn);
+      cb.setAttribute('data-pid',p.id);
+      cb.checked=isChecked;
+      cb.disabled=isFour;
+      if(isFour)cb.setAttribute('data-four','1');
+      cb.style.cssText='width:16px;height:16px;accent-color:#c8f000;flex-shrink:0';
+      row.appendChild(cb);
+
+      var pName=document.createElement('span');
+      pName.style.cssText='color:#ddd;font-size:13px';
+      pName.textContent=p.name;
+      row.appendChild(pName);
+
+      if(isFour){
+        var autoTag=document.createElement('span');
+        autoTag.style.cssText='font-size:10px;color:#666;margin-left:auto';
+        autoTag.textContent='자동';
+        row.appendChild(autoTag);
+      }
+      teamBox.appendChild(row);
+    });
+    box.appendChild(teamBox);
+  });
+
+  // ── 대진 편성 버튼 ────────────────────────────────────
+  var confirmBtn=document.createElement('button');
+  confirmBtn.style.cssText='width:100%;margin-top:12px;padding:12px;background:#c8f000;border:none;border-radius:8px;font-weight:700;font-size:14px;color:#000;cursor:pointer';
+  confirmBtn.textContent='대진 편성';
+  confirmBtn.addEventListener('click', confirmLineupPopup);
+  box.appendChild(confirmBtn);
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  // ── 체크박스 3명 제한 이벤트 ─────────────────────────
+  var cbs=overlay.querySelectorAll('.lp-cb:not([data-four])');
+  for(var i=0;i<cbs.length;i++){
+    (function(cb){
+      cb.addEventListener('change', function(){
+        var tn=cb.getAttribute('data-team');
+        var sk=tn.replace(/[^가-힣a-zA-Z0-9]/g,'_');
+        var all=Array.prototype.slice.call(overlay.querySelectorAll('.lp-cb[data-team="'+tn+'"]:not([data-four])'));
+        var checked=all.filter(function(x){return x.checked;});
+        if(checked.length>3){cb.checked=false;return;}
+        all.forEach(function(x){x.disabled=(!x.checked&&checked.length>=3);});
+        var el=document.getElementById('lp-cnt-'+sk);
+        if(el)el.textContent='('+checked.length+'명 선택)';
+      });
+    })(cbs[i]);
+  }
+}
+
+function closeLineupPopup(){
+  var el=document.getElementById('lineup-popup');
+  if(el)el.parentNode.removeChild(el);
+  window._lineupBg=null;
+}
+
+function confirmLineupPopup(){
+  var bg=window._lineupBg;
+  if(!bg){alert('[오류] _lineupBg가 없습니다');closeLineupPopup();return;}
+  
+  var gameNum=parseInt(bg.gameNum);
+  var fourMap={1:[0,1],2:[2,3],3:[4,5],4:[6,7],5:[8,9],6:[0,1],7:[2,3],8:[4,5],9:[6,7],10:[8,9]};
+  var fourIdxs=fourMap[gameNum]||[];
+  var allTeams=[];
+  S.players.forEach(function(p){var t=p.team||'팀 없음';if(allTeams.indexOf(t)<0)allTeams.push(t);});
+  var fourTeams=fourIdxs.map(function(i){return allTeams[i];}).filter(Boolean);
+
+  var lineupMap={};
+  var popup=document.getElementById('lineup-popup');
+  allTeams.forEach(function(tn){
+    var players=S.players.filter(function(p){return (p.team||'팀 없음')===tn;});
+    if(!players.length)return;
+    if(fourTeams.indexOf(tn)>=0){
+      lineupMap[tn]=players.map(function(p){return p.id;});
+    } else {
+      var checked=popup?Array.prototype.slice.call(popup.querySelectorAll('.lp-cb[data-team="'+tn+'"]:checked')).map(function(x){return x.getAttribute('data-pid');}):[];
+      if(checked.length>=3){
+        lineupMap[tn]=checked.slice(0,3);
+      } else {
+        var rest=players.filter(function(p){return checked.indexOf(p.id)<0;}).map(function(p){return p.id;});
+        for(var i=rest.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=rest[i];rest[i]=rest[j];rest[j]=tmp;}
+        lineupMap[tn]=checked.concat(rest.slice(0,3-checked.length));
+      }
+    }
+  });
+
+  try{
+    seedGame(bg,lineupMap);
+    closeLineupPopup();
+    save();
+    refreshAll();
+  }catch(e){
+    alert('[오류] 대진 편성 실패: '+e.message);
+    console.error(e);
+  }
+}
+
+// 기존 호환용 (혹시 다른 곳에서 호출)
+function closeLineupModal(){closeLineupPopup();}
+function confirmLineup(){confirmLineupPopup();}
+
+
 function manualSeedNext(){
-  // 결승 완료됐지만 다음 경기 미편성인 첫 번째 경기 찾기
-  for(let i=0;i<S.bracket.length-1;i++){
-    const bg=S.bracket[i];
-    const nextBg=S.bracket[i+1];
-    if(isGDone(bg)&&!nextBg.seeded){
-      // 시즌포인트 미배정이면 먼저 배정
-      const finalRound=bg.rounds[bg.rounds.length-1];
-      const finalDone=finalRound.matches.every(m=>m.done||(m.p1id==null&&m.p2id==null));
-      if(finalDone){
-        assignSeasonPts(bg);
-        seedNextGameIfReady(bg);
-        save();refreshAll();
-        alert(`${nextBg.gameNum} 대진이 편성되었습니다.`);
-        return;
+  // 1단계: S 상태 확인
+  var info='S.init='+S.init+'\nS.players='+S.players.length+'명\nS.bracket='+S.bracket.length+'경기';
+  if(S.bracket.length){
+    var b0=S.bracket[0];
+    var hasP=b0.rounds[0].matches.some(function(m){return m.p1id||m.p2id;});
+    info+='\n1경기 seeded='+b0.seeded+' 선수배정='+hasP;
+  }
+
+  // 2단계: 타겟 찾기
+  var targetBg=null;
+
+  // 선수 미배정 경기 탐색
+  for(var i=0;i<S.bracket.length;i++){
+    var bg=S.bracket[i];
+    var hp=bg.rounds[0].matches.some(function(m){return m.p1id||m.p2id;});
+    if(!hp){
+      if(i===0||isGDone(S.bracket[i-1])){
+        targetBg=bg; break;
       }
     }
   }
-  alert('편성할 다음 경기가 없거나 이전 경기가 아직 완료되지 않았습니다.');
-}
 
+  // 결승 완료 후 다음 경기
+  if(!targetBg){
+    for(var j=0;j<S.bracket.length-1;j++){
+      if(isGDone(S.bracket[j])&&!S.bracket[j+1].seeded){
+        assignSeasonPts(S.bracket[j]);
+        targetBg=S.bracket[j+1]; break;
+      }
+    }
+  }
+
+  // 타겟이 없으면 상태 보여주고 종료
+  if(!targetBg){
+    alert(info+'\n\n편성할 경기 없음:\n모든 경기가 진행중이거나 완료됐습니다.\n(선수가 이미 배정된 경우 대진이 이미 편성된 상태입니다.)');
+    return;
+  }
+
+  // 3단계: 팝업 열기
+  if(targetBg!==S.bracket[0]){ save(); refreshAll(); }
+  openLineupFor(targetBg);
+}
 function isGDone(bg){return bg.rounds.every(r=>r.matches.every(m=>m.done||(!m.p1id&&!m.p2id)));}
 
 function renderMC(m,gi){
@@ -2192,21 +2435,9 @@ function updateBracket(bmid,win,lose,p1Final,p2Final){
 function seedNextGameIfReady(currentBg){
   const gi=S.bracket.indexOf(currentBg);
   if(gi<0||gi>=S.bracket.length-1)return;
-  // 현재 경기 결승전이 완료됐는지 확인
   const finalRound=currentBg.rounds[currentBg.rounds.length-1];
-  const allDone=finalRound.matches.every(m=>m.done);
-  if(!allDone)return;
-  const nextBg=S.bracket[gi+1];
-  if(nextBg.seeded)return;
-  // 다음 경기 예선전: 선수 전체를 새로 셔플해서 배정
-  const ps=[...S.players];shuffle(ps);
-  const prelim=nextBg.rounds[0];
-  prelim.matches.forEach((m,i)=>{
-    m.p1id=ps[i*2]?ps[i*2].id:null;
-    m.p2id=ps[i*2+1]?ps[i*2+1].id:null;
-    m.p1prevScore=0;m.p2prevScore=0;
-  });
-  nextBg.seeded=true;
+  if(!finalRound.matches.every(m=>m.done))return;
+  // 다음 경기는 lineup 선택 후 편성
 }
 
 // ─── TIEBREAKER ───
