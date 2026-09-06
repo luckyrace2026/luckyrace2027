@@ -798,6 +798,7 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
 (function(){
+  try{
   const firebaseConfig = {
     apiKey: "AIzaSyAyYwqEpHbJTAtHxjBrHdrt-CURS4eDgYA",
     authDomain: "lr-2026-edd00.firebaseapp.com",
@@ -856,6 +857,10 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       _dbRef.set(data).catch(e => console.error('Firebase 저장 실패:', e));
     };
   };
+  }catch(e){
+    console.warn('Firebase 초기화 실패 (로컬 파일 실행 시 정상):', e.message);
+    window.connectFirebase = function(){};
+  }
 })();
 </script>
 
@@ -946,6 +951,7 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 // cumScore and avgScore use raw scores (p1score/p2score), NOT final (which includes elim bonuses)
 // p1spts / p2spts 에는 순위(1~32)가 저장됨 → SPTS_BY_RANK[순위]로 포인트 변환
 function pStats(id){
+  if(!S.matches) return{g:0,wins:0,draws:0,losses:0,cumScore:0,avgScore:0,pts:0,uniqueGames:0,valueRating:0};
   const done = S.matches.filter(m => m.done && (m.p1id === id || m.p2id === id));
   let wins=0, draws=0, losses=0, cumScore=0;
   done.forEach(m => {
@@ -986,6 +992,7 @@ function pStats(id){
 function pStatsUpTo(id, beforeGameNum, beforeRoundType){
   const roundOrder = ['예선전','16강전','8강전','준결승','결승'];
   const beforeRoundIdx = roundOrder.indexOf(beforeRoundType);
+  if(!S.matches) return{g:0,wins:0,draws:0,losses:0,cumScore:0,avgScore:0,pts:0,uniqueGames:0,valueRating:0};
 
   // 포함할 경기 기록 필터:
   // - 이전 경기(gameNum < beforeGameNum) 전체
@@ -1503,7 +1510,7 @@ function getPlayerCurrentStatus(playerId){
     '결승':'결승 진출',
     'champion':'우승',
     'eliminated':'탈락',
-    'not_seeded':'경기 진행 전',
+    'not_seeded':'미출전',
   };
 
   // 이 경기에서 선수가 출전하는지 확인
@@ -1512,7 +1519,7 @@ function getPlayerCurrentStatus(playerId){
 
   if(!inThisGame){
     // 대진에 없는 선수 → 아직 배정 안 됨
-    return{label:'경기 진행 전',color:'var(--text3)',bg:'var(--bg4)'};
+    return{label:'미출전',color:'var(--text3)',bg:'var(--bg4)'};
   }
 
   // 각 라운드를 역순으로 순회하며 최고 도달 라운드와 탈락 여부 확인
@@ -2676,6 +2683,7 @@ function delPlayer(id){if(!confirm('삭제합니까?'))return;S.players=S.player
 // ─── MODALS ───
 // ─── BROADCAST ───
 function openBroadcast(){
+  if(!S.bracket||!S.matches){alert('시즌이 시작되지 않았거나 데이터가 없습니다.');return;}
   // 게임 셀렉터 구성
   const gameSel=document.getElementById('bc-game-sel');
   const roundSel=document.getElementById('bc-round-sel');
@@ -2916,7 +2924,7 @@ function renderBcTeamStatus(gn,rt){
       if(st.includes('4강'))return'background:var(--green-bg);color:var(--green);border:1px solid rgba(76,175,125,.3)';
       if(st.includes('8강'))return'background:var(--green-bg);color:var(--green);border:1px solid rgba(76,175,125,.25)';
       if(st.includes('16강'))return'background:var(--blue-bg);color:var(--blue);border:1px solid rgba(91,156,246,.25)';
-      if(st.includes('진행 전'))return'background:var(--bg4);color:var(--text3);border:1px solid var(--line)';
+      if(st.includes('진행 전')||st.includes('미출전'))return'background:var(--bg4);color:var(--text3);border:1px solid var(--line)';
       if(st.includes('탈락'))return'background:var(--red-bg);color:var(--red);border:1px solid rgba(255,92,92,.25)';
       return'background:var(--bg4);color:var(--text3);border:1px solid var(--line)';
     };
@@ -2963,7 +2971,7 @@ function renderBcTeamStatus(gn,rt){
 function getBcPlayerStatus(playerId,bg,curRoundIdx,roundOrder){
   // 현재 경기에서의 선수 상태
   const inGame=bg.rounds.some(r=>r.matches.some(m=>m.p1id===playerId||m.p2id===playerId));
-  if(!inGame)return{label:'경기 진행 전',color:'var(--text3)'};
+  if(!inGame)return{label:'미출전',color:'var(--text3)'};
 
   let eliminated=false;
   let highestPassed=-1; // 통과한 라운드 인덱스
@@ -3244,11 +3252,19 @@ function fullReset(){if(!confirm('모든 데이터를 초기화합니다.'))retu
 function openAddModal(){showM('modal-add');}
 function closeAddModal(){hideM('modal-add');}
 function addPlayerModal(){
-  const n=document.getElementById('ap-name').value.trim(),t=document.getElementById('ap-team').value.trim(),a=document.getElementById('ap-age').value.trim();
+  const n=document.getElementById('ap-name').value.trim();
+  const t=document.getElementById('ap-team').value.trim();
+  const a=document.getElementById('ap-age').value.trim();
   if(!n){alert('이름을 입력하세요.');return;}
   S.players.push({id:uid(),name:n,team:t,age:a});
   ['ap-name','ap-team','ap-age'].forEach(id=>document.getElementById(id).value='');
-  save();closeAddModal();refreshAll();
+  save();
+  closeAddModal();
+  renderPlayers();
+  try{refreshAll();}catch(e){console.warn('refreshAll 오류(무시):', e);}
+  // 선수 탭으로 이동해서 추가된 선수 확인
+  const playersBtn=document.querySelectorAll('.nav-btn')[4];
+  if(playersBtn) gotoTab('players', playersBtn);
 }
 
 // ─── PLAYER DETAIL MODAL ───
