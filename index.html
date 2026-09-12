@@ -1436,10 +1436,9 @@ function refreshStandings(){
 
 // ─── SORT ───
 function setPSort(key,chipEl){
-  // 기본 정렬 방향: 패배수는 오름차순(낮은 순=1위), 나머지는 내림차순(높은 순=1위)
-  const defaultDir=key==='losses'?1:-1;
-  if(pSortKey===key)pSortDir*=-1;
-  else{pSortKey=key;pSortDir=defaultDir;}
+  // 모든 정렬 기준: 처음 선택 시 내림차순(-1), 같은 기준 재클릭 시 방향 토글
+  if(pSortKey===key) pSortDir*=-1;
+  else { pSortKey=key; pSortDir=-1; }
   if(chipEl){
     document.querySelectorAll('#pchips .chip').forEach(c=>{c.classList.remove('on');c.textContent=c.textContent.replace(/ [↓↑]/,'');});
     chipEl.classList.add('on');chipEl.textContent=chipEl.textContent+(pSortDir===-1?' ↓':' ↑');
@@ -1448,7 +1447,9 @@ function setPSort(key,chipEl){
   renderPRank();
 }
 function setTSort(key,chipEl){
-  if(tSortKey===key)tSortDir*=-1;else{tSortKey=key;tSortDir=-1;}
+  // 모든 정렬 기준: 처음 선택 시 내림차순(-1), 같은 기준 재클릭 시 방향 토글
+  if(tSortKey===key) tSortDir*=-1;
+  else { tSortKey=key; tSortDir=-1; }
   if(chipEl){
     document.querySelectorAll('#tchips .chip').forEach(c=>{c.classList.remove('on');c.textContent=c.textContent.replace(/ [↓↑]/,'');});
     chipEl.classList.add('on');chipEl.textContent=chipEl.textContent+(tSortDir===-1?' ↓':' ↑');
