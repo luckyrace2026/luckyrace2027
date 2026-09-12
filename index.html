@@ -730,16 +730,16 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       <p style="margin-bottom:8px">• 라운드 시즌 포인트는 경기 결승 종료 후 순위 기준 일괄 지급.</p>
       <div style="background:var(--bg3);border-radius:var(--r);padding:10px 12px;font-family:'DM Mono',monospace;font-size:11px;line-height:1.9">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">
-          <span><span style="color:var(--accent)">1위</span>  500pt</span><span><span style="color:var(--text3)">11위</span> 26pt</span>
-          <span><span style="color:var(--text3)">2위</span>  350pt</span><span><span style="color:var(--text3)">12위</span> 24pt</span>
-          <span><span style="color:var(--text3)">3위</span>  200pt</span><span><span style="color:var(--text3)">13위</span> 22pt</span>
-          <span><span style="color:var(--text3)">4위</span>  180pt</span><span><span style="color:var(--text3)">14위</span> 20pt</span>
-          <span><span style="color:var(--text3)">5위</span>  120pt</span><span><span style="color:var(--text3)">15위</span> 18pt</span>
-          <span><span style="color:var(--text3)">6위</span>   90pt</span><span><span style="color:var(--text3)">16위</span> 16pt</span>
-          <span><span style="color:var(--text3)">7위</span>   75pt</span><span><span style="color:var(--text3)">17위</span>  4pt</span>
-          <span><span style="color:var(--text3)">8위</span>   60pt</span><span><span style="color:var(--text3)">18위</span>  3pt</span>
-          <span><span style="color:var(--text3)">9위</span>   30pt</span><span><span style="color:var(--text3)">19위</span>  2pt</span>
-          <span><span style="color:var(--text3)">10위</span>  28pt</span><span><span style="color:var(--text3)">20위</span>  1pt</span>
+          <span><span style="color:var(--accent)">1위</span>  100pt</span><span><span style="color:var(--text3)">11위</span> 23pt</span>
+          <span><span style="color:var(--text3)">2위</span>   90pt</span><span><span style="color:var(--text3)">12위</span> 21pt</span>
+          <span><span style="color:var(--text3)">3위</span>   80pt</span><span><span style="color:var(--text3)">13위</span> 19pt</span>
+          <span><span style="color:var(--text3)">4위</span>   70pt</span><span><span style="color:var(--text3)">14위</span> 17pt</span>
+          <span><span style="color:var(--text3)">5위</span>   50pt</span><span><span style="color:var(--text3)">15위</span> 15pt</span>
+          <span><span style="color:var(--text3)">6위</span>   45pt</span><span><span style="color:var(--text3)">16위</span> 13pt</span>
+          <span><span style="color:var(--text3)">7위</span>   40pt</span><span><span style="color:var(--text3)">17위</span> 10pt</span>
+          <span><span style="color:var(--text3)">8위</span>   35pt</span><span><span style="color:var(--text3)">18위</span>  5pt</span>
+          <span><span style="color:var(--text3)">9위</span>   30pt</span><span><span style="color:var(--text3)">19위</span>  3pt</span>
+          <span><span style="color:var(--text3)">10위</span>  25pt</span><span><span style="color:var(--text3)">20위</span>  1pt</span>
         </div>
       </div>
 
@@ -2377,9 +2377,8 @@ function assignSeasonPts(bg){
 }
 
 // 레거시 호환
-function assignPartialSeasonPts(bg, loserId, roundType){
-  applyRoundPts(bg, roundType);
-}
+// 승점은 결승 완료 후 일괄 지급 (라운드별 즉시 지급 없음)
+function assignPartialSeasonPts(bg, loserId, roundType){ /* 사용 안 함 */ }
 
 
 function buildPlacements(bg){
@@ -3190,8 +3189,6 @@ function confirmResultInput(){
   if(finalDone){
     assignSeasonPts(bg);
     seedNextGameIfReady(bg);
-  } else if(loserId){
-    assignPartialSeasonPts(bg, loserId, fm.roundType);
   }
   save();closeResultInput();disableAllModes();refreshAll();
   alert(`결과 저장 완료: ${p1?p1.name:'P1'} ${p1f} vs ${p2?p2.name:'P2'} ${p2f} → ${sp(winnerId)?sp(winnerId).name:winnerId} 승리`);
@@ -3617,9 +3614,6 @@ function confirmResult(){
       // 전체 순위 재배정 + 다음 경기 편성
       assignSeasonPts(currentBg);
       seedNextGameIfReady(currentBg);
-    } else {
-      // 결승 전 라운드 탈락자 즉시 임시 승점
-      if(MS.lose) assignPartialSeasonPts(currentBg, MS.lose, MS.roundType);
     }
   }
 
