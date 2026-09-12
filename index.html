@@ -770,7 +770,10 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
     <button class="btn btn-block" style="margin-bottom:8px;border-color:rgba(255,179,64,.4);color:var(--amber)" onclick="toggleMatchResetMode()">선택 경기 초기화</button>
     <button class="btn btn-block" style="margin-bottom:8px;border-color:rgba(91,156,246,.4);color:var(--blue)" onclick="toggleMatchInputMode()">선택 경기 결과 입력</button>
     <hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
-    <p style="font-size:11px;color:var(--text3);margin-bottom:8px;font-family:'DM Mono',monospace;letter-spacing:.05em;text-transform:uppercase">데이터 관리</p>
+    <p style="font-size:11px;color:var(--text3);margin-bottom:8px;font-family:'DM Mono',monospace;letter-spacing:.05em;text-transform:uppercase">승점 관리</p>
+    <button class="btn btn-block" style="margin-bottom:8px;border-color:rgba(200,240,0,.35);color:var(--accent)" onclick="reassignAllSeasonPts()">🔄 승점 재배정 (결승 완료 경기만)</button>
+    <p style="font-size:10px;color:var(--text3);margin-bottom:12px">이전에 라운드별로 지급된 임시 승점이 있다면 초기화하고, 결승이 완료된 경기에 한해 최종 승점을 재배정합니다.</p>
+    <hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
     <button class="btn btn-block" style="margin-bottom:8px;border-color:rgba(76,175,125,.35);color:var(--green)" onclick="exportData()">📥 데이터 저장 (파일 다운로드)</button>
     <label class="btn btn-block" style="margin-bottom:8px;border-color:rgba(76,175,125,.35);color:var(--green);cursor:pointer">
       📤 데이터 불러오기 (파일 업로드)
@@ -912,13 +915,9 @@ function repairBracket(){
     }
   })));
   // 2. 이전 버전에서 직접 포인트(100,70,50...)를 저장한 경우 순위로 역변환
-  // SPTS_BY_RANK 포인트 → 순위 역방향 맵
   const ptsToRank={};
   SPTS_BY_RANK.forEach((pts,rank)=>{ if(pts>0) ptsToRank[pts]=rank; });
   S.matches.forEach(m=>{
-    // 순위는 1~32, 포인트는 1~100. 겹치는 값: 1,2,3,4,8,9,10,11,12,13,14,15,20
-    // 구분: p1spts가 포인트라면 SPTS_BY_RANK에 존재하고 순위범위(1~32) 밖이거나
-    //        실제 포인트 값(100,70,50,45,40,30,25)인 경우
     const bigPts=[100,90,80,70,50,45,40,35,30,25,23,21,19,17,15,13];
     [['p1spts'],['p2spts']].forEach(([key])=>{
       const v=m[key];
@@ -926,6 +925,24 @@ function repairBracket(){
         m[key]=ptsToRank[v]||null;
       }
     });
+  });
+  // 3. 결승이 완료되지 않은 경기에 승점이 배정된 경우 초기화 (구버전 임시 승점 정리)
+  S.bracket.forEach(bg=>{
+    const finalRound=bg.rounds[bg.rounds.length-1];
+    if(!finalRound)return;
+    const validFinal=finalRound.matches.filter(m=>m.p1id||m.p2id);
+    const finalDone=validFinal.length>0&&validFinal.every(m=>m.done);
+    if(!finalDone){
+      // 결승 미완료 → 이 경기의 모든 승점 초기화
+      let hadPts=false;
+      S.matches.forEach(m=>{
+        if(m.gameNum!==bg.gameNum)return;
+        if(m.p1spts!=null||m.p2spts!=null){
+          m.p1spts=null;m.p2spts=null;hadPts=true;
+        }
+      });
+      if(hadPts)console.log(`[repairBracket] ${bg.gameNum} 임시 승점 초기화`);
+    }
   });
 }
 function save(){
@@ -3244,6 +3261,32 @@ function clearDownstream(bg,ri,mi){
     clearDownstream(bg,ri+1,Math.floor(mi/2));
   }
 }
+function reassignAllSeasonPts(){
+  if(!confirm('모든 경기의 승점을 초기화하고 재배정합니다.\n결승이 완료된 경기에만 승점이 지급됩니다.\n계속하시겠습니까?')) return;
+
+  // 1. 모든 경기 기록의 p1spts, p2spts 초기화
+  S.matches.forEach(m => { m.p1spts = null; m.p2spts = null; });
+
+  // 2. 결승이 완료된 경기에만 assignSeasonPts 호출
+  let reassigned = 0;
+  S.bracket.forEach(bg => {
+    const finalRound = bg.rounds[bg.rounds.length - 1];
+    if(!finalRound) return;
+    const finalDone = finalRound.matches
+      .filter(m => m.p1id || m.p2id)
+      .every(m => m.done);
+    if(finalDone && finalRound.matches.some(m => m.done)){
+      assignSeasonPts(bg);
+      reassigned++;
+    }
+  });
+
+  save();
+  closeSettings();
+  refreshAll();
+  alert(`승점 재배정 완료!\n결승 완료 경기: ${reassigned}개\n미완료 경기는 승점이 지급되지 않았습니다.`);
+}
+
 function resetSeason(){if(!confirm('경기 기록을 모두 삭제합니다.'))return;S.matches=[];buildBracket();save();closeSettings();refreshAll();}
 function fullReset(){if(!confirm('모든 데이터를 초기화합니다.'))return;S={init:false,players:[],matches:[],bracket:[]};setupPs=[];save();showView('view-setup');renderSetupList();}
 function openAddModal(){showM('modal-add');}
