@@ -1012,6 +1012,8 @@ function save(){
 }
 load();
 window.S = S; // load() 후 S가 새 객체로 교체됐을 수 있으므로 재동기화
+// 로드 후 PO 경기 기록 자동 정리 (환수 처리)
+if(purgePOMatches()) save();
 
 // ─── HELPERS ───
 function ini(n){const p=(n||'').trim().split(' ');return p.length>=2?(p[0][0]+p[1][0]).toUpperCase():(n||'??').slice(0,2).toUpperCase();}
@@ -1029,7 +1031,7 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 // p1spts / p2spts 에는 순위(1~32)가 저장됨 → SPTS_BY_RANK[순위]로 포인트 변환
 function pStats(id){
   if(!S.matches) return{g:0,wins:0,draws:0,losses:0,cumScore:0,avgScore:0,pts:0,uniqueGames:0,valueRating:0};
-  const done = S.matches.filter(m => m.done && m.gameNum!=='PO' && (m.p1id === id || m.p2id === id));
+  const done = S.matches.filter(m => m.done && m.gameNum!=='PO' && m.gameNum!=='TEAM_PO' && (m.p1id === id || m.p2id === id));
   let wins=0, draws=0, losses=0, cumScore=0;
   done.forEach(m => {
     const isP1 = m.p1id === id;
@@ -1082,6 +1084,7 @@ function pStatsUpTo(id, beforeGameNum, beforeRoundType){
   const done = S.matches.filter(m => {
     if(!m.done) return false;
     if(m.p1id !== id && m.p2id !== id) return false;
+    if(m.gameNum==='PO'||m.gameNum==='TEAM_PO') return false; // PO 제외
     const mGameNum = parseInt(m.gameNum);
     if(mGameNum < beforeGameNum) return true;
     if(mGameNum === beforeGameNum){
@@ -1734,6 +1737,7 @@ function renderPeriodRank(){
   const el=document.getElementById('period-rank-result'); if(!el)return;
   const rows=S.players.map(p=>{
     const done=S.matches.filter(m=>m.done&&(m.p1id===p.id||m.p2id===p.id)
+      &&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'
       &&parseInt(m.gameNum)>=from&&parseInt(m.gameNum)<=to);
     let wins=0,draws=0,losses=0,cumScore=0,sPts=0;const seenG=new Set();
     done.forEach(m=>{
@@ -3895,6 +3899,16 @@ function clearDownstream(bg,ri,mi){
 }
 function resetSeason(){if(!confirm('경기 기록을 모두 삭제합니다.'))return;S.matches=[];buildBracket();save();closeSettings();refreshAll();}
 function fullReset(){if(!confirm('모든 데이터를 초기화합니다.'))return;S={init:false,players:[],matches:[],bracket:[]};setupPs=[];save();showView('view-setup');renderSetupList();}
+
+// PO 경기 기록을 S.matches에서 제거 (PO는 정규시즌 스탯과 완전 분리)
+function purgePOMatches(){
+  if(!S.matches) return false;
+  const before=S.matches.length;
+  S.matches=S.matches.filter(function(m){
+    return m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'&&m.roundType!=='플레이오프'&&m.roundType!=='팀 플레이오프';
+  });
+  return S.matches.length<before; // 제거된 게 있으면 true
+}
 function openAddModal(){showM('modal-add');}
 function closeAddModal(){hideM('modal-add');}
 function addPlayerModal(){
@@ -3922,7 +3936,7 @@ function openPModal(pid){
     <div><div style="font-size:16px;font-weight:500">${p.name}</div>
     <div style="font-size:12px;color:var(--text2)">${p.team||'팀 없음'} · ${p.age||'?'}세</div></div>
   </div>`;
-  const done=S.matches.filter(m=>m.done&&(m.p1id===pid||m.p2id===pid));
+  const done=S.matches.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'&&(m.p1id===pid||m.p2id===pid));
   const _vrMapPM=calcAllValueRatings();
   const s=pStatsWithVR(pid,_vrMapPM);
   // Group by gameNum for season pts
@@ -4284,7 +4298,7 @@ function renderPlayerPO(){
   if(showUpper&&lDoneAll){
     const{sorted:uSorted,stats:uStats}=calcPORank(uMatches,uIds);
     html+='<div class="po-section">';
-    html+=renderPOLeagueTable(uIds,uMatches,uStats,uSorted,'🏆 상위 PO 순위 (1~4위 + 하위PO 승자)',4);
+    html+=renderPOLeagueTable(uIds,uMatches,uStats,uSorted,'🏆 상위 PO 순위 (1~4위 + 하위PO 승자)',1);
     const uDoneAll=Object.values(uMatches).filter(m=>m.p1id&&m.p2id).every(m=>m.done);
     if(uDoneAll){
       html+='<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)"><div style="font-size:11px;font-weight:600;color:var(--accent);letter-spacing:.08em;font-family:var(--mono,monospace);margin-bottom:6px">🏅 최종 플레이오프 순위</div>';
@@ -4471,7 +4485,10 @@ function confirmResult(){
     upset:MS.upset||false,notes:MS.bMsg||'',
     done:true,p1spts:null,p2spts:null
   };
-  S.matches.push(rec);
+  // PO 경기는 정규 시즌과 완전 분리 — S.matches에 저장하지 않음
+  if(MS.gameNum!=='PO'&&MS.gameNum!=='TEAM_PO'){
+    S.matches.push(rec);
+  }
   if(MS.bmid) updateBracket(MS.bmid,MS.win,MS.lose,MS.p1f,MS.p2f);
 
   // 현재 경기(bg) 찾기
