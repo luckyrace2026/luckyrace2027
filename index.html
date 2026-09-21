@@ -1209,8 +1209,8 @@ function calcAlltimeStats(){
         g++;
         // 업셋
         if(!m.isDraw && m.upset){
-          if(m.loserId===p.id) upsets++;       // 내가 상위시드인데 졌음 = 업셋 당함
-          if(m.winnerId===p.id) upsetVictims++; // 내가 하위시드인데 이겼음 = 업셋
+          if(m.winnerId===p.id) upsets++;       // 내가 하위시드인데 이겼음 = 업셋을 한 것
+          if(m.loserId===p.id) upsetVictims++;  // 내가 상위시드인데 졌음 = 업셋을 당한 것
         }
       });
       // 시즌 승점
@@ -2217,7 +2217,7 @@ function detailH2H(){
   if(sorted.length<2) return '<div style="padding:20px;color:var(--text3)">선수가 2명 이상 필요합니다.</div>';
 
   const opts=sorted.map(({p})=>`<option value="${p.id}" ${_h2hSelected===p.id?'selected':''}>${p.name} (${p.team||'팀 없음'})</option>`).join('');
-  const sel=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+  const sel=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
     <label style="font-size:13px;font-weight:500">선수 선택</label>
     <select id="h2h-sel" onchange="_h2hSelected=this.value;document.getElementById('detail-content').innerHTML=detailH2H();" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);color:var(--text);font-size:13px">
       <option value="">-- 선수를 선택하세요 --</option>${opts}
@@ -2229,54 +2229,74 @@ function detailH2H(){
   const me=S.players.find(p=>p.id===_h2hSelected);
   if(!me) return dtCard('상대 전적', sel+'<p style="color:var(--text3);padding:20px">선수를 찾을 수 없습니다.</p>');
 
-  // 상대별 전적 계산
-  const rows=sorted
-    .filter(({p})=>p.id!==me.id)
-    .map(({p,s})=>{
-      const ms=S.matches.filter(m=>m.done&&((m.p1id===me.id&&m.p2id===p.id)||(m.p1id===p.id&&m.p2id===me.id)));
-      if(!ms.length) return null; // 전적 없으면 제외
-      const w=ms.filter(m=>m.winnerId===me.id).length;
-      const l=ms.filter(m=>m.winnerId===p.id).length;
-      const d=ms.filter(m=>m.isDraw).length;
-      const myScoreTotal=ms.reduce((a,m)=>a+(m.p1id===me.id?m.p1score:m.p2score),0);
-      const oppScoreTotal=ms.reduce((a,m)=>a+(m.p1id===p.id?m.p1score:m.p2score),0);
-      const result=w>l?'승':'우세' + (l>w?'패':'우세') + (w===l?'동률':'');
-      const resultStr=w>l?'우세':w<l?'열세':'동률';
-      return{
-        name:p.name,team:p.team||'',oppPts:s.pts,
-        total:ms.length+'경기',w,l,d,
-        wl:`${w}승 ${d}무 ${l}패`,
-        winRate:ms.length>0?Math.round(w/ms.length*100)+'%':'-',
-        myAvg:Math.round(myScoreTotal/ms.length),
-        oppAvg:Math.round(oppScoreTotal/ms.length),
-        result:resultStr,
-        _resultStr:resultStr, w, l,
-      };
-    })
-    .filter(Boolean);
+  // 통산 상대 전적 계산 (전 시즌 합산)
+  function calcH2H(matchList, meId, oppId){
+    const ms=matchList.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'
+      &&((m.p1id===meId&&m.p2id===oppId)||(m.p1id===oppId&&m.p2id===meId)));
+    if(!ms.length) return null;
+    const w=ms.filter(m=>m.winnerId===meId).length;
+    const l=ms.filter(m=>m.winnerId===oppId).length;
+    const d=ms.filter(m=>m.isDraw).length;
+    const myTot=ms.reduce((a,m)=>a+(m.p1id===meId?m.p1score:m.p2score),0);
+    const opTot=ms.reduce((a,m)=>a+(m.p1id===oppId?m.p1score:m.p2score),0);
+    return{g:ms.length,w,l,d,
+      wl:`${w}승 ${d}무 ${l}패`,
+      winRate:Math.round(w/ms.length*100)+'%',
+      myAvg:Math.round(myTot/ms.length),
+      oppAvg:Math.round(opTot/ms.length),
+      result:w>l?'우세':w<l?'열세':'동률'};
+  }
 
-  if(!rows.length) return dtCard('상대 전적', sel+'<p style="color:var(--text3);padding:20px;text-align:center">아직 상대한 선수가 없습니다.</p>');
+  // 전 시즌 경기 합산
+  const allSeasons=getAllSeasons();
+  allSeasons[CURRENT_SEASON]=S;
+  const allMatches=Object.values(allSeasons).flatMap(sd=>sd.matches||[]);
 
   const meStat=sorted.find(x=>x.p.id===me.id);
-  const header=`<div style="padding:10px 14px;margin-bottom:4px">
+  const header=`<div style="padding:8px 14px 4px">
     <span style="font-size:15px;font-weight:700;color:var(--text)">${me.name}</span>
     <span style="font-size:12px;color:var(--text3);margin-left:8px">${me.team||'팀 없음'} · ${fmt(meStat?.s.pts||0)}pt</span>
   </div>`;
 
-  const table=dtTable([
-    {label:'선수',key:'name',align:'left',nosort:true},
-    {label:'팀',key:'team',align:'left',nosort:true},
-    {label:'상대 승점',key:'oppPts'},
-    {label:'전적',key:'wl',nosort:true},
-    {label:'승 ↕',key:'w',align:'center'},
-    {label:'패 ↕',key:'l',align:'center'},
-    {label:'승률 ↕',key:'winRate'},
-    {label:'내 평균 ↕',key:'myAvg'},
-    {label:'상대 평균 ↕',key:'oppAvg'},
-    {label:'우열',key:'result',align:'center',nosort:true},
-  ],rows,'w');
+  // 내비게이션 탭 (시즌/통산)
+  const viewId='h2h-view-'+_h2hSelected.replace(/[^a-z0-9]/gi,'_');
+  const tabBar=`<div style="display:flex;gap:6px;margin:8px 14px 10px">
+    <button id="h2h-tab-season" onclick="document.getElementById('h2h-season').style.display='block';document.getElementById('h2h-alltime').style.display='none';this.style.color='var(--accent)';this.style.borderColor='var(--accent)';document.getElementById('h2h-tab-alltime').style.color='var(--text3)';document.getElementById('h2h-tab-alltime').style.borderColor='var(--line2)'"
+      style="padding:5px 14px;background:transparent;border:1px solid var(--accent);border-radius:var(--r);color:var(--accent);font-size:12px;cursor:pointer">시즌 전적</button>
+    <button id="h2h-tab-alltime" onclick="document.getElementById('h2h-alltime').style.display='block';document.getElementById('h2h-season').style.display='none';this.style.color='var(--accent)';this.style.borderColor='var(--accent)';document.getElementById('h2h-tab-season').style.color='var(--text3)';document.getElementById('h2h-tab-season').style.borderColor='var(--line2)'"
+      style="padding:5px 14px;background:transparent;border:1px solid var(--line2);border-radius:var(--r);color:var(--text3);font-size:12px;cursor:pointer">통산 전적</button>
+  </div>`;
 
-  return dtCard(`상대 전적 — ${me.name}`, sel+header+table)
+  function buildTable(matchList, label){
+    const rows=sorted
+      .filter(({p})=>p.id!==me.id)
+      .map(({p,s})=>{
+        const h=calcH2H(matchList,me.id,p.id);
+        if(!h) return null;
+        return{name:p.name,team:p.team||'',oppPts:s.pts,...h};
+      }).filter(Boolean);
+    if(!rows.length) return `<p style="color:var(--text3);padding:12px 14px;text-align:center">아직 상대한 선수가 없습니다.</p>`;
+    return dtTable([
+      {label:'선수',key:'name',align:'left',nosort:true},
+      {label:'팀',key:'team',align:'left',nosort:true},
+      {label:'전적',key:'wl',nosort:true},
+      {label:'승 ↕',key:'w',align:'center'},
+      {label:'패 ↕',key:'l',align:'center'},
+      {label:'승률 ↕',key:'winRate'},
+      {label:'내 평균 ↕',key:'myAvg'},
+      {label:'상대 평균 ↕',key:'oppAvg'},
+      {label:'우열',key:'result',align:'center',nosort:true},
+    ],rows,'w');
+  }
+
+  const seasonTable=buildTable(S.matches, '시즌');
+  const alltimeTable=buildTable(allMatches, '통산');
+
+  const body=`${header}${tabBar}
+    <div id="h2h-season">${seasonTable}</div>
+    <div id="h2h-alltime" style="display:none">${alltimeTable}</div>`;
+
+  return dtCard(`상대 전적 — ${me.name}`, sel+body)
     +'<p style="font-size:11px;color:var(--text3);padding:4px 10px">* 0승 0패 상대는 표시하지 않음 / 헤더 ↕ 클릭으로 정렬</p>';
 }
 
