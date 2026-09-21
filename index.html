@@ -116,8 +116,8 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
 .w{background:var(--green-bg);color:var(--green);border:1px solid rgba(76,175,125,.2);padding:1px 6px;border-radius:3px;font-size:10px;font-family:'DM Mono',monospace;font-weight:500}
 .d{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(255,179,64,.2);padding:1px 6px;border-radius:3px;font-size:10px;font-family:'DM Mono',monospace;font-weight:500}
 .l{background:var(--red-bg);color:var(--red);border:1px solid rgba(255,92,92,.2);padding:1px 6px;border-radius:3px;font-size:10px;font-family:'DM Mono',monospace;font-weight:500}
-.avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
-.t-ava{width:30px;height:30px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;letter-spacing:-.3px;overflow:hidden;white-space:nowrap;text-overflow:clip;line-height:1}
+.t-ava{width:30px;height:30px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;letter-spacing:-.3px}
 /* BRACKET */
 .rsep{font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:8px;margin:14px 0 8px}
 .rsep::after{content:'';flex:1;height:1px;background:var(--line)}
@@ -320,7 +320,15 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
 <!-- MAIN -->
 <div id="view-main" class="hidden">
   <div class="app-header">
-    <div class="hb"><div class="hb-label">Lucky Race</div><div class="hb-title">2027 정규 시즌</div></div>
+    <div class="hb" style="display:flex;align-items:center;gap:8px">
+      <div>
+        <div class="hb-label">Lucky Race</div>
+        <div class="hb-title" id="season-title">2027 정규 시즌</div>
+      </div>
+      <select id="season-select" onchange="switchSeason(this.value)"
+        style="background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);color:var(--text);font-size:12px;padding:4px 8px;max-width:110px">
+      </select>
+    </div>
     <div class="ha">
       <div id="fb-status" title="Firebase 연결 상태" style="width:8px;height:8px;border-radius:50%;background:var(--text3);margin-right:6px;flex-shrink:0;transition:background .3s"></div>
       <button class="btn btn-sm" onclick="openBroadcast()" style="margin-right:4px">중계자료</button>
@@ -333,6 +341,7 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
     <button class="nav-btn" onclick="gotoTab('detail',this)">세부기록</button>
     <button class="nav-btn" onclick="gotoTab('schedule',this)">경기 진행</button>
     <button class="nav-btn" onclick="gotoTab('history',this)">기록</button>
+    <button class="nav-btn" onclick="gotoTab('alltime',this)">통산 기록</button>
     <button class="nav-btn" onclick="gotoTab('playoff',this)">플레이오프</button>
     <button class="nav-btn" onclick="gotoTab('players',this)">선수</button>
   </div>
@@ -476,6 +485,63 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       <button class="btn btn-accent btn-block" onclick="manualStart()">경기 시작</button>
       <div class="sec-label" style="margin-top:14px">최근 기록</div>
       <div class="card" style="padding:0 18px" id="manual-history-body"></div>
+    </div>
+  </div>
+
+  <!-- 통산 기록 TAB -->
+  <div id="tab-alltime" class="tab">
+    <div class="inner-nav">
+      <button class="inner-btn active" onclick="switchAlltimeTab('player',this)">선수 기록</button>
+      <button class="inner-btn" onclick="switchAlltimeTab('team',this)">팀 기록</button>
+    </div>
+
+    <!-- 선수 기록 -->
+    <div id="alltime-player" class="inner-tab active">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="font-size:12px;color:var(--text3)">정렬</span>
+        <select id="alltime-sort-select" onchange="renderAlltimeTab()"
+          style="flex:1;padding:6px 8px;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);color:var(--text);font-size:12px">
+          <option value="pts">승점 (누적)</option>
+          <option value="cumScore">누적 점수</option>
+          <option value="avgScore">평균 점수</option>
+          <option value="vrSum">가치 평점 합</option>
+          <option value="wins">W (승리)</option>
+          <option value="draws">D (무승부)</option>
+          <option value="losses">L (패배)</option>
+          <option value="upsets">업셋</option>
+          <option value="upsetVictims">피업셋</option>
+          <option value="firstAvg">선공 평균</option>
+          <option value="lastAvg">후공 평균</option>
+          <option value="ppg">경기당 승점</option>
+          <option value="scoreValue">점수 가치도</option>
+          <option value="contrib">점수 기여도</option>
+          <option value="highScore">최고점</option>
+          <option value="lowScore">최저점</option>
+        </select>
+        <button id="alltime-dir-btn" onclick="toggleAlltimeDir()"
+          style="padding:6px 10px;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);color:var(--text);font-size:13px;white-space:nowrap;cursor:pointer">↓</button>
+      </div>
+      <div id="alltime-content"></div>
+    </div>
+
+    <!-- 팀 기록 -->
+    <div id="alltime-team" class="inner-tab">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="font-size:12px;color:var(--text3)">정렬</span>
+        <select id="alltime-team-sort" onchange="renderAlltimeTeamTab()"
+          style="flex:1;padding:6px 8px;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);color:var(--text);font-size:12px">
+          <option value="pts">승점 합</option>
+          <option value="avgScore">평균 점수</option>
+          <option value="winRate">승률</option>
+          <option value="vrSum">가치 평점 합</option>
+          <option value="g">누적 경기 수</option>
+          <option value="wins">W</option>
+          <option value="losses">L</option>
+        </select>
+        <button id="alltime-team-dir-btn" onclick="toggleAlltimeTeamDir()"
+          style="padding:6px 10px;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);color:var(--text);font-size:13px;white-space:nowrap;cursor:pointer">↓</button>
+      </div>
+      <div id="alltime-team-content"></div>
     </div>
   </div>
 
@@ -821,6 +887,21 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       <p style="margin-bottom:4px">• 승점 상위 8명이 플레이오프 진출.</p>
       <p style="margin-bottom:4px">• 동점 시 공동 순위 부여.</p>
       <p>• 누적/평균 점수는 시드 보너스 제외 원점수 기준.</p>
+
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin:12px 0 6px">점수 가치도 <span style="color:var(--text3);font-size:9px">(2028시즌~)</span></div>
+      <p style="margin-bottom:4px">• <b style="color:var(--text)">2028시즌부터</b> 도입. 경기 중 <b style="color:var(--text)">애드(Add) 액션마다 실시간</b> 평가 (경기당 최대 15회/선수).</p>
+      <p style="margin-bottom:4px">• <b style="color:var(--text)">a</b> = 상대 현재 점수, <b style="color:var(--text)">b</b> = 내 현재 점수, <b style="color:var(--text)">x</b> = 이번 뽑은 점수</p>
+      <div style="background:var(--bg3);border-radius:var(--r);padding:8px 12px;font-size:11px;line-height:2;margin-bottom:8px">
+        <div><b style="color:var(--accent)">① 지고 있음</b> (a − b &gt; 0):</div>
+        <div style="padding-left:10px;color:var(--text3)">가치도 = <b style="color:var(--text)">10x / (a−b)</b>,  범위 [1, 10]</div>
+        <div style="padding-left:10px;color:var(--text3)">단, x ≥ (a−b) 이면 <b style="color:var(--green)">역전 → 무조건 10점</b></div>
+        <div style="padding-left:10px;font-size:10px;color:var(--text3)">ex) 79점 뒤지는 상황에서 80점 → 10점 / 80점 뒤지는 상황에서 70점 → 8.75점</div>
+        <div style="margin-top:4px"><b style="color:var(--accent)">② 이기거나 차이 ≤ 100점</b> (b − a ≤ 100):</div>
+        <div style="padding-left:10px;color:var(--text3)">가치도 = <b style="color:var(--text)">x / 10</b>,  범위 [1, 10]</div>
+        <div style="margin-top:4px"><b style="color:var(--accent)">③ 100점 초과 리드</b> (b − a &gt; 100):</div>
+        <div style="padding-left:10px;color:var(--text3)">가치도 = <b style="color:var(--text)">x / 10</b>,  범위 [2, 8]</div>
+      </div>
+      <p style="margin-bottom:12px;font-size:11px;color:var(--text3)">* 세부기록 탭 '점수 가치도'는 경기별 평균 가치도를 선수별로 집계.</p>
     </div>
   </div>
 </div>
@@ -832,6 +913,7 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
     <button class="btn btn-red btn-block" style="margin-bottom:8px" onclick="resetSeason()">시즌 초기화 (경기 기록 삭제)</button>
     <button class="btn btn-red btn-block" style="margin-bottom:8px" onclick="fullReset()">전체 초기화 (선수 포함)</button>
     <button class="btn btn-block" style="margin-bottom:8px;border-color:rgba(255,179,64,.4);color:var(--amber)" onclick="toggleMatchResetMode()">선택 경기 초기화</button>
+    <button class="btn btn-block" style="margin-bottom:8px;border-color:rgba(212,240,76,.35);color:var(--accent)" onclick="openNextSeason()">🏁 다음 시즌 개막하기</button>
     <button class="btn btn-block" style="margin-bottom:8px;border-color:rgba(91,156,246,.4);color:var(--blue)" onclick="toggleMatchInputMode()">선택 경기 결과 입력</button>
     <hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
     <p style="font-size:11px;color:var(--text3);margin-bottom:8px;font-family:'DM Mono',monospace;letter-spacing:.05em;text-transform:uppercase">데이터 관리</p>
@@ -939,8 +1021,8 @@ const ELIM_ROUNDS=['16강전','8강전','준결승','결승'];
 const AB=['rgba(91,156,246,.15)','rgba(76,175,125,.15)','rgba(212,240,76,.12)','rgba(255,179,64,.15)','rgba(168,99,255,.15)','rgba(255,92,92,.12)','rgba(45,212,191,.15)'];
 const AT=['#5b9cf6','#4caf7d','#a8c23a','#ffb340','#a863ff','#ff5c5c','#2dd4bf'];
 // Team color map
-const TEAM_BG={'ITA':'rgba(34,197,94,.2)','KIA':'rgba(239,68,68,.2)','현대':'rgba(156,163,175,.2)','롯데':'rgba(29,78,216,.2)','SSG':'rgba(220,38,38,.2)','한화':'rgba(249,115,22,.2)','LG':'rgba(147,51,234,.2)','카카오':'rgba(234,179,8,.2)','삼성':'rgba(29,78,216,.25)','KT':'rgba(30,30,30,.6)'};
-const TEAM_TX={'ITA':'#16a34a','KIA':'#b91c1c','현대':'#9ca3af','롯데':'#3b82f6','SSG':'#ef4444','한화':'#f97316','LG':'#a855f7','카카오':'#eab308','삼성':'#60a5fa','KT':'#d1d5db'};
+const TEAM_BG={'ITA':'rgba(134,239,172,.25)','삼성':'rgba(147,210,255,.25)','카카오':'rgba(253,224,71,.25)','SSG':'rgba(220,38,38,.85)','한화':'rgba(251,146,60,.25)','롯데':'rgba(30,27,75,.9)','KT':'rgba(15,15,15,.95)','현대':'rgba(100,116,139,.3)','KIA':'rgba(185,28,28,.9)','LG':'rgba(126,34,206,.85)'};
+const TEAM_TX={'ITA':'#86efac','삼성':'#93c5fd','카카오':'#fde047','SSG':'#fde047','한화':'#fb923c','롯데':'#ffffff','KT':'#ffffff','현대':'#cbd5e1','KIA':'#ffffff','LG':'#f9a8d4'};
 function teamColor(teamName){const k=Object.keys(TEAM_BG).find(k=>teamName&&teamName.includes(k));return k?{bg:TEAM_BG[k],tx:TEAM_TX[k]}:null;}
 function avcTeam(p,i){const tc=teamColor(p.team||'');return tc||{bg:AB[i%AB.length],tx:AT[i%AT.length]};}
 
@@ -954,6 +1036,494 @@ let tSortKey='totalPts',tSortDir=-1;
 let matchResetMode=false;
 let matchInputMode=false;
 let _riMatchId=null,_riGi=null;
+
+// ─── SEASON MANAGEMENT ─────────────────────────────────────────────────────
+// ALL_SEASONS: { '2027': {S snapshot}, '2028': {S snapshot}, ... }
+// CURRENT_SEASON: '2027' (string year key)
+
+const SEASONS_KEY = 'lr_seasons';
+const CURRENT_KEY = 'lr_current_season';
+
+let CURRENT_SEASON = '2027';
+
+function loadSeasonMeta(){
+  try{
+    const cur = localStorage.getItem(CURRENT_KEY);
+    if(cur) CURRENT_SEASON = cur;
+  }catch(e){}
+}
+
+function saveCurrentSeasonData(){
+  // 현재 S를 ALL_SEASONS[CURRENT_SEASON]에 저장
+  try{
+    const all = getAllSeasons();
+    all[CURRENT_SEASON] = JSON.parse(JSON.stringify(S));
+    localStorage.setItem(SEASONS_KEY, JSON.stringify(all));
+  }catch(e){}
+}
+
+function getAllSeasons(){
+  try{
+    const d = localStorage.getItem(SEASONS_KEY);
+    if(d) return JSON.parse(d);
+  }catch(e){}
+  return {};
+}
+
+function getSeasonKeys(){
+  const all = getAllSeasons();
+  const keys = Object.keys(all);
+  // 현재 시즌도 포함
+  if(!keys.includes(CURRENT_SEASON)) keys.push(CURRENT_SEASON);
+  return keys.sort();
+}
+
+function renderSeasonSelect(){
+  const sel = document.getElementById('season-select');
+  if(!sel) return;
+  const keys = getSeasonKeys();
+  sel.innerHTML = keys.map(k =>
+    `<option value="${k}" ${k===CURRENT_SEASON?'selected':''}>${k}시즌</option>`
+  ).join('');
+  // 헤더 타이틀 업데이트
+  const titleEl = document.getElementById('season-title');
+  if(titleEl) titleEl.textContent = CURRENT_SEASON + ' 정규 시즌';
+}
+
+function switchSeason(yearKey){
+  if(yearKey === CURRENT_SEASON) return;
+  // 현재 시즌 저장
+  saveCurrentSeasonData();
+  // 새 시즌으로 전환
+  CURRENT_SEASON = yearKey;
+  try{ localStorage.setItem(CURRENT_KEY, CURRENT_SEASON); }catch(e){}
+  // 해당 시즌 데이터 로드
+  const all = getAllSeasons();
+  const seasonData = all[yearKey];
+  // S 객체 교체
+  Object.keys(S).forEach(k => { delete S[k]; });
+  if(seasonData){
+    Object.keys(seasonData).forEach(k => { S[k] = seasonData[k]; });
+  } else {
+    // 새 시즌 초기 상태 (선수 유지, 기록 초기화)
+    S.init = true;
+    S.matches = [];
+    S.bracket = [];
+    S.seasonRanks = {};
+    S.playerPO = null;
+    S.teamPO = null;
+    buildBracket();
+  }
+  renderSeasonSelect();
+  refreshAll();
+  repairBracket();
+}
+
+function openNextSeason(){
+  const cur = parseInt(CURRENT_SEASON);
+  const next = String(cur + 1);
+  const all = getAllSeasons();
+  if(all[next]){
+    if(!confirm(next + '시즌 데이터가 이미 있습니다. 해당 시즌으로 전환할까요?')) return;
+    switchSeason(next);
+    closeSettings();
+    return;
+  }
+  if(!confirm(next + '시즌을 개막하시겠습니까?\n현재 시즌(' + CURRENT_SEASON + ')은 저장됩니다.')) return;
+  // 현재 시즌 저장
+  saveCurrentSeasonData();
+  // 새 시즌 초기화 (선수 유지)
+  const prevPlayers = JSON.parse(JSON.stringify(S.players || []));
+  CURRENT_SEASON = next;
+  try{ localStorage.setItem(CURRENT_KEY, CURRENT_SEASON); }catch(e){}
+  Object.keys(S).forEach(k => { delete S[k]; });
+  S.init = true;
+  S.players = prevPlayers;
+  S.matches = [];
+  S.bracket = [];
+  S.seasonRanks = {};
+  S.playerPO = null;
+  S.teamPO = null;
+  buildBracket();
+  save();
+  saveCurrentSeasonData();
+  renderSeasonSelect();
+  refreshAll();
+  closeSettings();
+  alert(next + '시즌이 개막됐습니다!');
+}
+
+// save() 호출 시 ALL_SEASONS도 동기화
+const _origSave = null; // save는 이미 정의됨, 아래에서 후처리
+
+function saveWithSeasons(){
+  S.updatedAt = Date.now();
+  try{ localStorage.setItem('lr2027', JSON.stringify(S)); }catch(e){}
+  if(typeof window._fbSave === 'function') window._fbSave(S);
+  // 시즌 메타에도 동기화
+  try{
+    const all = getAllSeasons();
+    all[CURRENT_SEASON] = JSON.parse(JSON.stringify(S));
+    localStorage.setItem(SEASONS_KEY, JSON.stringify(all));
+  }catch(e){}
+}
+
+// ─── ALLTIME STATS ─────────────────────────────────────────────────────────
+function calcAlltimeStats(){
+  const all = getAllSeasons();
+  // 현재 시즌도 포함
+  all[CURRENT_SEASON] = S;
+  const seasonKeys = Object.keys(all).sort();
+
+  // 선수 목록은 현재 시즌 기준
+  const players = S.players || [];
+  if(!players.length) return [];
+
+  const result = players.map(p => {
+    let pts=0, cumScore=0, wins=0, draws=0, losses=0, g=0;
+    let firstScores=[], lastScores=[];
+    let allScores=[], highScore=null, lowScore=null;
+    let upsets=0, upsetVictims=0;
+    let vrSum=0;
+
+    seasonKeys.forEach(sk => {
+      const sd = all[sk];
+      if(!sd||!sd.matches) return;
+      const done = sd.matches.filter(m =>
+        m.done && m.gameNum!=='PO' && m.gameNum!=='TEAM_PO' &&
+        (m.p1id===p.id||m.p2id===p.id)
+      );
+
+      // 승점 계산 (seasonRanks 우선)
+      const seenG = new Set();
+      done.forEach(m => {
+        const isP1 = m.p1id===p.id;
+        const sc = isP1 ? m.p1score : m.p2score;
+        cumScore += sc||0;
+        allScores.push(sc||0);
+        if(isP1 && m.roundType==='예선전') firstScores.push(sc||0);
+        else if(!isP1 && m.roundType==='예선전') lastScores.push(sc||0);
+        if(m.isDraw) draws++;
+        else if(m.winnerId===p.id) wins++;
+        else losses++;
+        g++;
+        // 업셋
+        if(!m.isDraw && m.upset){
+          if(m.loserId===p.id) upsets++;       // 내가 상위시드인데 졌음 = 업셋 당함
+          if(m.winnerId===p.id) upsetVictims++; // 내가 하위시드인데 이겼음 = 업셋
+        }
+      });
+      // 시즌 승점
+      const sr = sd.seasonRanks || {};
+      const seenGS = new Set(done.map(m=>m.gameNum));
+      seenGS.forEach(gn => {
+        if(seenG.has(gn)) return;
+        seenG.add(gn);
+        let rank = null;
+        if(sr[gn]&&sr[gn][p.id]!=null) rank=sr[gn][p.id];
+        else {
+          const gm=done.find(m=>m.gameNum===gn&&((m.p1id===p.id&&m.p1spts!=null)||(m.p2id===p.id&&m.p2spts!=null)));
+          if(gm) rank=gm.p1id===p.id?gm.p1spts:gm.p2spts;
+        }
+        if(rank!=null) pts += SPTS_BY_RANK[rank]||0;
+      });
+
+      // 가치 평점 (시즌별 pStats 기반 근사)
+      if(done.length>0){
+        const sScore=done.reduce((a,m)=>a+(m.p1id===p.id?m.p1score:m.p2score),0);
+        const sAvg=done.length?sScore/done.length:0;
+        const allPlayers=sd.players||[];
+        const allDone=sd.matches?sd.matches.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'):[];
+        const playerAvgs=allPlayers.map(pp=>{
+          const pd=allDone.filter(m=>m.p1id===pp.id||m.p2id===pp.id);
+          return pd.length?pd.reduce((a,m)=>a+(m.p1id===pp.id?m.p1score:m.p2score),0)/pd.length:0;
+        }).filter(v=>v>0);
+        const globalAvg=playerAvgs.length?playerAvgs.reduce((a,v)=>a+v,0)/playerAvgs.length:1;
+        let sPts2=0;
+        const sg=new Set(done.map(m=>m.gameNum));
+        sg.forEach(gn=>{
+          let rank=null;
+          if(sr[gn]&&sr[gn][p.id]!=null) rank=sr[gn][p.id];
+          if(rank!=null) sPts2+=SPTS_BY_RANK[rank]||0;
+        });
+        if(sPts2>0&&sAvg>0&&globalAvg>0){
+          vrSum += Math.log10(sPts2)+(sAvg/globalAvg);
+        }
+      }
+
+      // 선공/후공 (bracketMatchId 있는 경우)
+      done.forEach(m=>{
+        const isP1=m.p1id===p.id;
+        const sc=isP1?m.p1score:m.p2score;
+        if(isP1) firstScores.push(sc||0);
+        else lastScores.push(sc||0);
+      });
+    });
+
+    if(allScores.length){
+      highScore=Math.max(...allScores);
+      lowScore=Math.min(...allScores.filter(v=>v>0));
+    }
+
+    const avgScore=g?Math.round(cumScore/g):0;
+    const firstAvg=firstScores.length?Math.round(firstScores.reduce((a,v)=>a+v,0)/firstScores.length):0;
+    const lastAvg=lastScores.length?Math.round(lastScores.reduce((a,v)=>a+v,0)/lastScores.length):0;
+    const ppg=g?parseFloat((pts/g).toFixed(2)):0;
+
+    // 점수 가치도 (sv 배열이 있는 경기만 / 2028시즌~)
+    let scoreValue=0;
+    let svCount=0;
+    seasonKeys.forEach(sk=>{
+      const sd=all[sk]; if(!sd||!sd.matches) return;
+      const done2=sd.matches.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'&&(m.p1id===p.id||m.p2id===p.id));
+      done2.forEach(m=>{
+        const isP1=m.p1id===p.id;
+        const sv=isP1?(m.p1sv||[]):(m.p2sv||[]);
+        if(sv.length>0){ // sv 데이터 있는 경기만 집계
+          sv.forEach(v=>{scoreValue+=v;svCount++;});
+        }
+      });
+    });
+    const svAvg=svCount?parseFloat((scoreValue/svCount).toFixed(2)):null;
+
+    // 점수 기여도 (공식: 100 + 내평균 - 전체시즌평균)
+    let contribSum=0, contribCount=0;
+    seasonKeys.forEach(sk=>{
+      const sd=all[sk]; if(!sd||!sd.matches) return;
+      const done3=sd.matches.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'&&(m.p1id===p.id||m.p2id===p.id));
+      if(!done3.length) return;
+      const myAvg=done3.reduce((a,m)=>a+(m.p1id===p.id?m.p1score:m.p2score),0)/done3.length;
+      // 해당 시즌 전체 평균
+      const allDone3=(sd.matches||[]).filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO');
+      const allPlayers3=sd.players||[];
+      const gAvg3=allPlayers3.length?allPlayers3.reduce((a,pp)=>{
+        const ppd=allDone3.filter(m=>m.p1id===pp.id||m.p2id===pp.id);
+        return a+(ppd.length?ppd.reduce((s,m)=>s+(m.p1id===pp.id?m.p1score:m.p2score),0)/ppd.length:0);
+      },0)/allPlayers3.length:myAvg;
+      contribSum+=(100+(myAvg-gAvg3));
+      contribCount++;
+    });
+    const contrib=contribCount?parseFloat((contribSum/contribCount).toFixed(2)):null;
+
+    return {
+      p, pts: parseFloat(pts.toFixed(2)), cumScore, avgScore, wins, draws, losses, g,
+      vrSum: parseFloat(vrSum.toFixed(3)), upsets, upsetVictims,
+      firstAvg, lastAvg, ppg, scoreValue: svAvg, contrib, highScore, lowScore
+    };
+  });
+
+  return result;
+}
+
+let _alltimeDir = -1; // -1: 내림차순, 1: 오름차순
+let _alltimeTeamDir = -1;
+
+function switchAlltimeTab(which, btn){
+  document.querySelectorAll('#tab-alltime .inner-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#tab-alltime .inner-tab').forEach(t=>t.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  const el=document.getElementById('alltime-'+which);
+  if(el) el.classList.add('active');
+  if(which==='player') renderAlltimeTab();
+  else renderAlltimeTeamTab();
+}
+
+function toggleAlltimeDir(){
+  _alltimeDir *= -1;
+  const btn = document.getElementById('alltime-dir-btn');
+  if(btn) btn.textContent = _alltimeDir === -1 ? '↓' : '↑';
+  renderAlltimeTab();
+}
+
+function toggleAlltimeTeamDir(){
+  _alltimeTeamDir *= -1;
+  const btn = document.getElementById('alltime-team-dir-btn');
+  if(btn) btn.textContent = _alltimeTeamDir === -1 ? '↓' : '↑';
+  renderAlltimeTeamTab();
+}
+
+function calcAlltimeTeamStats(){
+  const all = getAllSeasons();
+  all[CURRENT_SEASON] = S;
+  const seasonKeys = Object.keys(all).sort();
+  // 팀 목록은 현재 시즌 기준
+  const teamNames = [...new Set((S.players||[]).map(p=>p.team||'팀 없음'))];
+  return teamNames.map(tn => {
+    let pts=0, cumScore=0, wins=0, losses=0, g=0, vrSum=0;
+    const memberIds = (S.players||[]).filter(p=>(p.team||'팀 없음')===tn).map(p=>p.id);
+    seasonKeys.forEach(sk=>{
+      const sd=all[sk]; if(!sd||!sd.matches) return;
+      const done=sd.matches.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'
+        &&(memberIds.includes(m.p1id)||memberIds.includes(m.p2id)));
+      done.forEach(m=>{
+        const isMyP1=memberIds.includes(m.p1id);
+        cumScore+=(isMyP1?m.p1score:m.p2score)||0;
+        if(!m.isDraw){
+          if(memberIds.includes(m.winnerId)) wins++;
+          else losses++;
+        }
+        g++;
+      });
+      // 승점: 팀원 각 선수의 시즌 승점 합산
+      const sr=sd.seasonRanks||{};
+      Object.keys(sr).forEach(gn=>{
+        memberIds.forEach(pid=>{
+          if(sr[gn]&&sr[gn][pid]!=null) pts+=SPTS_BY_RANK[sr[gn][pid]]||0;
+        });
+      });
+      // 가치평점 근사
+      memberIds.forEach(pid=>{
+        const pd=done.filter(m=>m.p1id===pid||m.p2id===pid);
+        if(!pd.length) return;
+        const pScore=pd.reduce((a,m)=>a+(m.p1id===pid?m.p1score:m.p2score),0)/pd.length;
+        const allDone=sd.matches.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO');
+        const allPlayers=sd.players||[];
+        const gAvg=allPlayers.length?allPlayers.reduce((a,pp)=>{
+          const ppd=allDone.filter(m=>m.p1id===pp.id||m.p2id===pp.id);
+          return a+(ppd.length?ppd.reduce((s,m)=>s+(m.p1id===pp.id?m.p1score:m.p2score),0)/ppd.length:0);
+        },0)/allPlayers.length:1;
+        let sPts2=0;
+        Object.keys(sr).forEach(gn=>{if(sr[gn]&&sr[gn][pid]!=null)sPts2+=SPTS_BY_RANK[sr[gn][pid]]||0;});
+        if(sPts2>0&&pScore>0&&gAvg>0) vrSum+=Math.log10(sPts2)+(pScore/gAvg);
+      });
+    });
+    const avgScore=g?Math.round(cumScore/g):0;
+    const winRate=g?parseFloat(((wins/g)*100).toFixed(1)):0;
+    return{name:tn, pts:parseFloat(pts.toFixed(1)), avgScore, winRate, vrSum:parseFloat(vrSum.toFixed(3)), g, wins, losses};
+  });
+}
+
+function renderAlltimeTeamTab(){
+  const el=document.getElementById('alltime-team-content');
+  if(!el) return;
+  const sel=document.getElementById('alltime-team-sort');
+  const sortKey=sel?sel.value:'pts';
+  const dir=_alltimeTeamDir;
+  const btn=document.getElementById('alltime-team-dir-btn');
+  if(btn) btn.textContent=dir===-1?'↓':'↑';
+  const rows=calcAlltimeTeamStats();
+  rows.sort((a,b)=>dir*(b[sortKey]-a[sortKey]));
+  const cols=[
+    {key:'pts',label:'승점 합'},
+    {key:'avgScore',label:'평균 점수'},
+    {key:'winRate',label:'승률(%)'},
+    {key:'vrSum',label:'평점합'},
+    {key:'g',label:'경기수'},
+    {key:'wins',label:'W'},
+    {key:'losses',label:'L'},
+  ];
+  let html='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+  html+='<thead><tr style="color:var(--text3)">';
+  html+='<th style="text-align:center;padding:5px 4px;font-weight:400">#</th>';
+  html+='<th style="text-align:left;padding:5px 6px;font-weight:400">팀</th>';
+  cols.forEach(col=>{
+    const active=col.key===sortKey;
+    const arrow=active?(dir===-1?'↓':'↑'):'';
+    html+=`<th style="text-align:right;padding:5px 6px;font-weight:${active?'700':'400'};color:${active?'var(--accent)':'var(--text3)'};white-space:nowrap;cursor:pointer"
+      onclick="(function(){const s=document.getElementById('alltime-team-sort');if(s.value==='${col.key}'){_alltimeTeamDir*=-1;}else{s.value='${col.key}';_alltimeTeamDir=-1;}renderAlltimeTeamTab();})()">${col.label}${arrow}</th>`;
+  });
+  html+='</tr></thead><tbody>';
+  rows.forEach((r,i)=>{
+    const tc=teamColor(r.name)||{bg:'var(--bg3)',tx:'var(--text2)'};
+    html+=`<tr style="border-top:1px solid var(--line);${i%2===1?'background:rgba(255,255,255,.02)':''}">
+      <td style="text-align:center;padding:5px 4px;color:${i<3?'var(--accent)':'var(--text3)'};font-weight:${i<3?'700':'400'}">${i+1}</td>
+      <td style="padding:5px 6px;white-space:nowrap"><div style="display:flex;align-items:center;gap:5px">
+        <div class="t-ava" style="background:${tc.bg};color:${tc.tx};width:22px;height:22px;font-size:8px">${tIni(r.name)}</div>
+        <span style="color:var(--text);font-weight:500">${r.name}</span>
+      </div></td>`;
+    cols.forEach(col=>{
+      const v=r[col.key];
+      const active=col.key===sortKey;
+      const disp=v===null||v===undefined?'-':(typeof v==='number'&&!Number.isInteger(v)?v.toFixed(typeof v==='number'&&col.key==='winRate'?1:2):v);
+      html+=`<td style="text-align:right;padding:5px 6px;white-space:nowrap;font-family:'DM Mono',monospace;color:${active?'var(--accent)':'var(--text2)'};font-weight:${active?'700':'400'}">${disp}</td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+}
+
+function renderAlltimeTab(){
+  const el = document.getElementById('alltime-content');
+  if(!el) return;
+  const sel = document.getElementById('alltime-sort-select');
+  const sortKey = sel ? sel.value : 'pts';
+  const rows = calcAlltimeStats();
+  if(!rows.length){
+    el.innerHTML='<div style="text-align:center;padding:24px;color:var(--text3)">선수 데이터가 없습니다.</div>';
+    return;
+  }
+
+  // 방향 버튼 동기화
+  const btn = document.getElementById('alltime-dir-btn');
+  if(btn) btn.textContent = _alltimeDir === -1 ? '↓' : '↑';
+
+  // 정렬 (사용자 지정 방향)
+  const dir = _alltimeDir;
+  rows.sort((a,b) => {
+    const av=a[sortKey]??-Infinity, bv=b[sortKey]??-Infinity;
+    if(av===null||av===undefined) return 1;
+    if(bv===null||bv===undefined) return -1;
+    return dir*(bv-av);
+  });
+
+  const cols = [
+    {key:'pts',      label:'승점'},
+    {key:'cumScore', label:'누적'},
+    {key:'avgScore', label:'평균'},
+    {key:'vrSum',    label:'평점합'},
+    {key:'wins',     label:'W'},
+    {key:'draws',    label:'D'},
+    {key:'losses',   label:'L'},
+    {key:'upsets',   label:'업셋'},
+    {key:'upsetVictims', label:'피업셋'},
+    {key:'firstAvg', label:'선공'},
+    {key:'lastAvg',  label:'후공'},
+    {key:'ppg',      label:'경기당'},
+    {key:'scoreValue',label:'가치도'},
+    {key:'contrib',  label:'기여도'},
+    {key:'highScore',label:'최고'},
+    {key:'lowScore', label:'최저'},
+  ];
+
+  let html = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+  html += '<thead><tr style="color:var(--text3)">';
+  html += '<th style="text-align:center;padding:5px 4px;font-weight:400;white-space:nowrap">#</th>';
+  html += '<th style="text-align:left;padding:5px 6px;font-weight:400;white-space:nowrap">선수</th>';
+  cols.forEach(col => {
+    const active = col.key===sortKey;
+    const arrow = active ? (_alltimeDir===-1 ? '↓' : '↑') : '';
+    html += `<th style="text-align:right;padding:5px 6px;font-weight:${active?'700':'400'};color:${active?'var(--accent)':'var(--text3)'};white-space:nowrap;cursor:pointer"
+      onclick="(function(){
+        const sel=document.getElementById('alltime-sort-select');
+        if(sel.value==='${col.key}'){_alltimeDir*=-1;}else{sel.value='${col.key}';_alltimeDir=-1;}
+        renderAlltimeTab();
+      })()">${col.label}${arrow}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  rows.forEach((r, i) => {
+    const p = r.p;
+    const tc = avcTeam(p, S.players.indexOf(p));
+    html += `<tr style="border-top:1px solid var(--line);${i%2===1?'background:rgba(255,255,255,.02)':''}">`;
+    html += `<td style="text-align:center;padding:5px 4px;color:${i<3?'var(--accent)':'var(--text3)'};font-weight:${i<3?'700':'400'}">${i+1}</td>`;
+    html += `<td style="padding:5px 6px;white-space:nowrap"><div style="display:flex;align-items:center;gap:5px">
+      <div class="avatar" style="background:${tc.bg};color:${tc.tx};width:18px;height:18px;font-size:7px">${ini(p.name,2)}</div>
+      <span style="color:var(--text);font-weight:500">${p.name}</span>
+      <span style="font-size:10px;color:var(--text3)">${p.team||''}</span>
+    </div></td>`;
+    cols.forEach(col => {
+      const v = r[col.key];
+      const active = col.key===sortKey;
+      const disp = v===null||v===undefined ? '-' : (typeof v==='number'&&!Number.isInteger(v) ? v.toFixed(2) : v);
+      html += `<td style="text-align:right;padding:5px 6px;white-space:nowrap;font-family:'DM Mono',monospace;color:${active?'var(--accent)':'var(--text2)'};font-weight:${active?'700':'400'}">${disp}</td>`;
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+}
 
 function load(){
   try{
@@ -1007,17 +1577,43 @@ function repairBracket(){
 }
 function save(){
   S.updatedAt = Date.now();
-  try{localStorage.setItem('lr2027',JSON.stringify(S));}catch(e){}
+  try{ localStorage.setItem('lr2027', JSON.stringify(S)); }catch(e){}
   if(typeof window._fbSave === 'function') window._fbSave(S);
+  // 시즌 메타에도 동기화
+  try{
+    const all = getAllSeasons();
+    all[CURRENT_SEASON] = JSON.parse(JSON.stringify(S));
+    localStorage.setItem(SEASONS_KEY, JSON.stringify(all));
+    localStorage.setItem(CURRENT_KEY, CURRENT_SEASON);
+  }catch(e){}
 }
 load();
 window.S = S; // load() 후 S가 새 객체로 교체됐을 수 있으므로 재동기화
 // 로드 후 PO 경기 기록 자동 정리 (환수 처리)
 if(purgePOMatches()) save();
+// 시즌 메타 초기화
+loadSeasonMeta();
+// 현재 시즌 데이터를 ALL_SEASONS에 등록 (최초 실행 시)
+(function(){
+  try{
+    const all = getAllSeasons();
+    if(!all[CURRENT_SEASON]){
+      all[CURRENT_SEASON] = JSON.parse(JSON.stringify(S));
+      localStorage.setItem(SEASONS_KEY, JSON.stringify(all));
+    }
+  }catch(e){}
+})();
+// DOM 준비 후 시즌 드롭다운 렌더
+document.addEventListener('DOMContentLoaded', function(){
+  renderSeasonSelect();
+});
+// 이미 DOMContentLoaded 지났을 경우 즉시 실행
+if(document.readyState !== 'loading') renderSeasonSelect();
 
 // ─── HELPERS ───
-function ini(n){const p=(n||'').trim().split(' ');return p.length>=2?(p[0][0]+p[1][0]).toUpperCase():(n||'??').slice(0,2).toUpperCase();}
-function tIni(t){if(!t)return'?';const p=t.trim().split(' ');return p.length>=2?(p[0][0]+p[1][0]).toUpperCase():t.slice(0,2).toUpperCase();}
+function ini(n,maxLen){const s=(n||'').trim();if(!s)return'??';const full=s.length<=3?s.toUpperCase():(()=>{const p=s.split(' ');return p.length>=2?(p[0][0]+p[1][0]).toUpperCase():s.slice(0,3).toUpperCase();})();return maxLen?full.slice(0,maxLen):full;}
+const TEAM_ICON={'ITA':'ITA','삼성':'삼성','카카오':'카카오','SSG':'SSG','한화':'한화','롯데':'롯데','KT':'KT','현대':'현대','KIA':'KIA','LG':'LG'};
+function tIni(t){if(!t)return'?';const k=Object.keys(TEAM_ICON).find(k=>t.includes(k));if(k)return TEAM_ICON[k];const p=t.trim().split(' ');return p.length>=2?(p[0][0]+p[1][0]).toUpperCase():t.slice(0,2).toUpperCase();}
 function avc(i){return{bg:AB[i%AB.length],tx:AT[i%AT.length]};}
 let _uidCounter=0;
 function uid(){return 'x'+Date.now()+'_'+(++_uidCounter)+'_'+Math.floor(Math.random()*99999);}
@@ -1806,23 +2402,51 @@ function detailPtsPerGame(){
 }
 
 /* ── 6. 점수 가치도 ───────────────────────────────────── */
-function scoreValueCalc(my,opp){
-  if(my+opp===0)return 5;
-  const myR=my/(my+opp);
-  const diff=Math.abs(my-opp)/(Math.max(my,opp)||1);
-  return Math.round(Math.max(1,Math.min(10,myR*10-(diff*3)+(1-diff)*2))*10)/10;
+// 점수 가치도: 턴 중 애드 액션 시 실시간 평가
+// my=내 add 직전 내 점수, opp=add 직전 상대 점수, x=이번 뽑은 점수
+function scoreValueCalc(my, opp, x){
+  // x가 없으면 my를 결과로 간주 (최종 통계용 호환)
+  if(x===undefined){ x=my; my=0; }
+  const b=my, a=opp;
+  let v, lo, hi;
+  if(a - b > 0){
+    // 지고 있음
+    const gap = a - b; // 점수차 (양수)
+    if(x >= gap){
+      // 역전 발생 → 무조건 10점
+      return 10;
+    }
+    v = (10 * x) / gap;
+    lo = 1; hi = 10;
+  } else if(b - a <= 100){
+    // 이기거나 100점 이내 리드
+    v = x / 10;
+    lo = 1; hi = 10;
+  } else {
+    // 100점 초과 리드
+    v = x / 10;
+    lo = 2; hi = 8;
+  }
+  return Math.round(Math.max(lo, Math.min(hi, v)) * 100) / 100;
 }
 
 function detailScoreValue(){
   const sorted=detailSortedPlayers();
   const rows=sorted.map(({p,s},i)=>{
-    const done=S.matches.filter(m=>m.done&&(m.p1id===p.id||m.p2id===p.id));
-    if(!done.length) return{rank:i+1,name:p.name,team:p.team||'',pts:s.pts,avgV:null,highV:null,lowV:null};
-    const vals=done.map(m=>{const ip=m.p1id===p.id;return scoreValueCalc(ip?m.p1score:m.p2score,ip?m.p2score:m.p1score);});
+    const done=S.matches.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'&&(m.p1id===p.id||m.p2id===p.id));
+    // sv 배열이 실제로 기록된 경기만 집계 (2028시즌부터)
+    const vals=[];
+    done.forEach(m=>{
+      const isP1=m.p1id===p.id;
+      const sv=isP1?(m.p1sv||[]):(m.p2sv||[]);
+      if(sv.length>0) sv.forEach(v=>vals.push(v));
+      // sv 없는 경기(2027시즌 등)는 제외
+    });
+    if(!vals.length) return{rank:i+1,name:p.name,team:p.team||'',pts:s.pts,avgV:null,highV:null,lowV:null};
     const avgV=parseFloat((vals.reduce((a,v)=>a+v,0)/vals.length).toFixed(2));
-    return{rank:i+1,name:p.name,team:p.team||'',pts:s.pts,avgV,highV:Math.max(...vals),lowV:Math.min(...vals)};
+    return{rank:i+1,name:p.name,team:p.team||'',pts:s.pts,avgV,highV:parseFloat(Math.max(...vals).toFixed(2)),lowV:parseFloat(Math.min(...vals).toFixed(2))};
   });
-  return dtCard('점수 가치도 (1~10점 척도)',dtTable([
+  return dtCard('점수 가치도 (1~10점 척도 / 2028시즌~)',dtTable([
     {label:'순위',key:'rank',align:'center',nosort:true},
     {label:'선수',key:'name',align:'left',nosort:true},
     {label:'팀',key:'team',align:'left',nosort:true},
@@ -1831,7 +2455,7 @@ function detailScoreValue(){
     {label:'최고 가치 ↕',key:'highV'},
     {label:'최저 가치 ↕',key:'lowV'},
   ],rows,'avgV'))
-  +'<p style="font-size:11px;color:var(--text3);padding:4px 10px">* 10: 좁은 점수차+높은 점수 / 1: 넓은 점수차+낮은 점수</p>';
+  +'<p style="font-size:11px;color:var(--text3);padding:4px 10px">* 2028시즌부터 측정. 경기 중 애드 액션마다 실시간 평가 (역전 시 무조건 10점)</p>';
 }
 
 /* ── 7. 최고점 & 최저점 ───────────────────────────────── */
@@ -2041,6 +2665,12 @@ function gotoTab(name,btn){
   if(name==='detail')detailGoto('upset',document.querySelector('#detail-subnav .sub-btn'));
   if(name==='schedule')renderBracket();
   if(name==='history')renderHistoryTab();
+  if(name==='alltime'){
+    // 선수 탭 기본 활성화
+    document.querySelectorAll('#tab-alltime .inner-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
+    document.querySelectorAll('#tab-alltime .inner-tab').forEach((t,i)=>t.classList.toggle('active',i===0));
+    renderAlltimeTab();
+  }
   if(name==='playoff'){_poView='all';renderPlayoff();}
   if(name==='players')renderPlayers();
 }
@@ -2274,7 +2904,7 @@ function renderTRank(){
               return`<tr style="border-top:1px solid var(--line)">
                 <td style="padding:5px 4px">
                   <div style="display:flex;align-items:center;gap:6px">
-                    <div class="avatar" style="background:${pc.bg};color:${pc.tx};width:20px;height:20px;font-size:8px">${ini(p.name)}</div>
+                    <div class="avatar" style="background:${pc.bg};color:${pc.tx};width:20px;height:20px;font-size:7px">${ini(p.name,2)}</div>
                     <div>
                       <div style="font-size:12px">${p.name}</div>
                       <div style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;margin-top:2px;background:${status.bg};color:${status.color};font-family:'DM Mono',monospace;font-weight:500">${status.label}</div>
@@ -2779,7 +3409,8 @@ function initMS(p1id,p2id,rt,gn,bmid){
     p1n:p1?p1.name:'?',p2n:p2?p2.name:'?',
     p1team:p1?p1.team||'':'' , p2team:p2?p2.team||'':'',
     p1s:0,p2s:0,p1as:0,p2as:0,p1a:0,p2a:0,p1t:0,p2t:0,
-    cur:1,turns:0,rolled:null,phase:'roll',log:[]};
+    cur:1,turns:0,rolled:null,phase:'roll',log:[],
+    p1sv:[],p2sv:[]};  // 점수 가치도 배열 (애드 액션마다 기록)
 }
 function renderMUI(){
   document.getElementById('vm-round').textContent=MS.roundType;
@@ -2820,8 +3451,25 @@ function doRoll(){
 function doAction(type){
   const cp=MS.cur,num=MS.rolled;
   const an=cp===1?MS.p1n:MS.p2n,tn=cp===1?MS.p2n:MS.p1n;
-  if(type==='add'){if(cp===1){MS.p1s+=num;MS.p1as+=num;MS.p1a++;}else{MS.p2s+=num;MS.p2as+=num;MS.p2a++;}MS.log.push(`<b>${an}</b>: 애드 +${num} → ${cp===1?MS.p1s:MS.p2s}점`);}
-  else{if(cp===1){MS.p2s=Math.max(0,MS.p2s-num);MS.p1t++;}else{MS.p1s=Math.max(0,MS.p1s-num);MS.p2t++;}MS.log.push(`<b>${an}</b>: 스로우 -${num} → ${tn} 감점`);}
+  if(type==='add'){
+    const myBefore=cp===1?MS.p1s:MS.p2s;
+    const oppBefore=cp===1?MS.p2s:MS.p1s;
+    if(cp===1){MS.p1s+=num;MS.p1as+=num;MS.p1a++;}
+    else{MS.p2s+=num;MS.p2as+=num;MS.p2a++;}
+    // 2028시즌부터 점수 가치도 기록
+    if(CURRENT_SEASON>='2028'){
+      const sv=scoreValueCalc(myBefore,oppBefore,num);
+      if(cp===1){if(!MS.p1sv)MS.p1sv=[];MS.p1sv.push(sv);}
+      else{if(!MS.p2sv)MS.p2sv=[];MS.p2sv.push(sv);}
+      MS.log.push(`<b>${an}</b>: 애드 +${num} → ${cp===1?MS.p1s:MS.p2s}점 <span style="color:var(--accent);font-size:10px">[가치도 ${sv}]</span>`);
+    } else {
+      MS.log.push(`<b>${an}</b>: 애드 +${num} → ${cp===1?MS.p1s:MS.p2s}점`);
+    }
+  }
+  else{
+    if(cp===1){MS.p2s=Math.max(0,MS.p2s-num);MS.p1t++;}else{MS.p1s=Math.max(0,MS.p1s-num);MS.p2t++;}
+    MS.log.push(`<b>${an}</b>: 스로우 -${num} → ${tn} 감점`);
+  }
   MS.turns++;MS.phase='roll';MS.rolled=null;MS.cur=MS.cur===1?2:1;
   if(MS.turns>=30){calcResult();return;}
   renderMUI();
@@ -3601,7 +4249,7 @@ function renderBcTeamStatus(gn,rt){
           const ptc=avcTeam(p,S.players.indexOf(p));
           return`<tr style="border-top:1px solid var(--line)">
             <td style="padding:5px 6px"><div style="display:flex;align-items:center;gap:6px">
-              <div class="avatar" style="background:${ptc.bg};color:${ptc.tx};width:20px;height:20px;font-size:8px">${ini(p.name)}</div>
+              <div class="avatar" style="background:${ptc.bg};color:${ptc.tx};width:20px;height:20px;font-size:7px">${ini(p.name,2)}</div>
               <span>${p.name}</span>
             </div></td>
             <td style="text-align:center;padding:5px 6px">
@@ -4070,7 +4718,7 @@ function renderTop3Cards(){
       const rankColor=i===0?'var(--accent)':i===1?'#a0a8b0':'#9e7a50';
       html+=`<div class="top3-row">
         <span class="top3-rank" style="color:${rankColor}">${i+1}</span>
-        <div class="avatar" style="background:${tc.bg};color:${tc.tx};width:20px;height:20px;font-size:8px;flex-shrink:0">${ini(r.p.name)}</div>
+        <div class="avatar" style="background:${tc.bg};color:${tc.tx};width:24px;height:24px;font-size:8px;flex-shrink:0">${ini(r.p.name,2)}</div>
         <span style="font-size:12px;overflow:hidden;text-overflow:ellipsis">${r.p.name}</span>
         <span class="top3-val">${fmtFn(r.s[key])}${unit}</span>
       </div>`;
@@ -4309,7 +4957,7 @@ function renderPlayerPO(){
         html+=`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)">
           <span style="font-family:'DM Mono',monospace;font-size:12px;color:${r<=3?'var(--accent)':'var(--text3)'};width:24px;font-weight:${r<=3?'700':'400'}">${r}위</span>
           <span>${medal}</span>
-          <div class="avatar" style="background:${tc.bg};color:${tc.tx};width:24px;height:24px;font-size:9px">${ini(p.name)}</div>
+          <div class="avatar" style="background:${tc.bg};color:${tc.tx};width:24px;height:24px;font-size:7.5px">${ini(p.name,3)}</div>
           <span style="font-size:13px;font-weight:${r<=3?'600':'400'}">${p.name}</span>
           <span style="font-size:11px;color:var(--text3);margin-left:auto">${p.team||''}</span>
         </div>`;
@@ -4367,7 +5015,7 @@ function renderPlayerPO(){
       const zc=i<4?'var(--accent)':'var(--blue)';
       html+=`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)">
         <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);width:22px">${i+1}위</span>
-        <div class="avatar" style="background:${tc.bg};color:${tc.tx};width:24px;height:24px;font-size:9px">${ini(p.name)}</div>
+        <div class="avatar" style="background:${tc.bg};color:${tc.tx};width:24px;height:24px;font-size:7.5px">${ini(p.name,3)}</div>
         <span style="font-size:13px">${p.name}</span>
         <span style="font-size:10px;margin-left:auto;padding:2px 7px;border-radius:3px;color:${zc};background:var(--bg3)">${zone}</span>
       </div>`;
@@ -4425,7 +5073,7 @@ function renderPOLeagueTable(playerIds, matchMap, stats, sorted, title, accentCo
     html+=`<tr style="border-top:1px solid var(--line)">
       <td style="padding:4px 6px;color:${isAccent?'var(--accent)':'var(--text3)'};font-weight:${isAccent?'700':'400'}">${i+1}</td>
       <td style="padding:4px 6px"><div style="display:flex;align-items:center;gap:5px">
-        <div class="avatar" style="background:${tc.bg};color:${tc.tx};width:18px;height:18px;font-size:7px">${ini(p.name)}</div>
+        <div class="avatar" style="background:${tc.bg};color:${tc.tx};width:18px;height:18px;font-size:7px">${ini(p.name,2)}</div>
         <span style="color:var(--text)">${p.name}</span>
         <span style="font-size:10px;color:var(--text3);margin-left:2px">${p.team||''}</span>
       </div></td>
@@ -4483,7 +5131,8 @@ function confirmResult(){
     p1score:MS.p1s,p2score:MS.p2s,p1final:MS.p1f,p2final:MS.p2f,
     winnerId:MS.win,loserId:MS.lose,isDraw:false,
     upset:MS.upset||false,notes:MS.bMsg||'',
-    done:true,p1spts:null,p2spts:null
+    done:true,p1spts:null,p2spts:null,
+    p1sv:MS.p1sv||[],p2sv:MS.p2sv||[]  // 턴별 점수 가치도 기록
   };
   // PO 경기는 정규 시즌과 완전 분리 — S.matches에 저장하지 않음
   if(MS.gameNum!=='PO'&&MS.gameNum!=='TEAM_PO'){
@@ -4705,6 +5354,7 @@ function renderTeamPO(){
     return;
   }
   const po=S.teamPO;
+  if(!window._tpoExpanded) window._tpoExpanded={};
   let html='';
 
   // 진출팀
@@ -4721,8 +5371,7 @@ function renderTeamPO(){
 
   ['r1','r2','r3'].forEach(function(phase){
     const m=po.matches[phase];
-    if(!m||!m.teamB) return;
-    if(!m.teamA) return;
+    if(!m||!m.teamB||!m.teamA) return;
     const tcA=teamColor(m.teamA)||{bg:'var(--bg3)',tx:'var(--text2)'};
     const tcB=teamColor(m.teamB)||{bg:'var(--bg3)',tx:'var(--text2)'};
     html+=`<div class="po-section"><div class="po-title">${m.label}</div>`;
@@ -4748,116 +5397,122 @@ function renderTeamPO(){
     const playersB=(m.players&&m.players[m.teamB])||[];
     const hasPlayers=playersA.length===3&&playersB.length===3;
 
-    // ── 세트별 렌더 ───────────────────────────────────────────
+    // ── 세트별 렌더 ──────────────────────────────────────────
     const maxSets=m.winner?m.sets.length:3;
     for(let si=0;si<maxSets;si++){
       const set=m.sets[si]||null;
-      // 이전 세트 완료 여부
       const prevSetDone=si===0||(m.sets[si-1]&&m.sets[si-1].winner);
       const setActive=!m.winner&&prevSetDone&&(set||si===m.sets.length);
       const setDone=set&&set.winner;
-      const swA=set?set.games.filter(g=>g.winnerId===g.p1id).length:0;
-      const swB=set?set.games.filter(g=>g.winnerId===g.p2id).length:0;
-      const totA=set?set.games.reduce((s,g)=>s+(g.p1score||0),0):0;
-      const totB=set?set.games.reduce((s,g)=>s+(g.p2score||0),0):0;
+      const swA=set?set.games.filter(g=>g&&g.winnerId===g.p1id).length:0;
+      const swB=set?set.games.filter(g=>g&&g.winnerId===g.p2id).length:0;
+      const totA=set?set.games.reduce((s,g)=>s+(g&&g.p1score||0),0):0;
+      const totB=set?set.games.reduce((s,g)=>s+(g&&g.p2score||0),0):0;
 
-      html+=`<div style="border:1px solid var(--line);border-radius:var(--r);margin-bottom:10px;overflow:hidden">`;
-      // 세트 헤더
-      html+=`<div style="padding:7px 12px;background:var(--bg3);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:12px;font-weight:600;color:var(--text)">세트 ${si+1}</span>
-        ${setDone
-          ? `<span style="font-size:11px;color:${set.winner==='A'?'var(--accent)':'var(--blue)'}">
-              ${set.winner==='A'?m.teamA:m.teamB} 승리
-              <span style="color:var(--text3);font-weight:400;margin-left:4px">(${swA}-${swB} / 총점 ${totA}:${totB})</span>
-            </span>`
-          : setActive
-            ? `<span style="font-size:11px;color:var(--accent)">진행 중</span>`
-            : `<span style="font-size:11px;color:var(--text3)">대기</span>`
-        }
-      </div>`;
+      // 라운드 종료 후 세트 완료된 경우 → 접기/펼치기
+      const expandKey=phase+'_s'+si;
+      const isExpanded=!!window._tpoExpanded[expandKey];
+      // 라운드 종료 && 세트 완료 → 기본 접힘 / 진행 중 → 항상 펼침
+      const shouldCollapse=m.winner&&setDone;
 
-      if(setActive||setDone){
-        // ── 세트 스코어보드 ─────────────────────────────────
-        if(setDone||(set&&set.games.some(g=>g&&g.winnerId!==null))){
-          // 경기별 점수
-          const scoreRowsA=[], scoreRowsB=[];
-          for(let gi2=0;gi2<3;gi2++){
-            const g2=set?set.games[gi2]:null;
-            const gd2=g2&&g2.winnerId!==null;
-            const gw1_2=gd2&&g2.winnerId===g2.p1id;
-            const gw2_2=gd2&&g2.winnerId===g2.p2id;
-            scoreRowsA.push(gd2
-              ? `<span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${gw1_2?'var(--green)':'var(--red)'}">${g2.p1score}</span>`
-              : `<span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--text3)">-</span>`);
-            scoreRowsB.push(gd2
-              ? `<span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${gw2_2?'var(--green)':'var(--red)'}">${g2.p2score}</span>`
-              : `<span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--text3)">-</span>`);
+      html+=`<div style="border:1px solid var(--line);border-radius:var(--r);margin-bottom:8px;overflow:hidden">`;
+
+      // ── 세트 헤더 (항상 표시) ──
+      const winnerName=setDone?(set.winner==='A'?m.teamA:m.teamB):'';
+      const winColor=setDone?(set.winner==='A'?'var(--accent)':'var(--blue)'):'var(--text3)';
+      const setStatusHtml=setDone
+        ? '<span style="font-size:12px;font-family:\'DM Mono\',monospace;color:'+winColor+'"><b>'+swA+'</b><span style="color:var(--text3)"> : </span><b>'+swB+'</b></span>'
+          +'<span style="font-size:10px;color:'+winColor+';margin-left:6px">'+winnerName+' 승</span>'
+        : setActive
+          ? '<span style="font-size:11px;color:var(--accent)">진행 중</span>'
+          : '<span style="font-size:11px;color:var(--text3)">대기</span>';
+      const expandBtnHtml=shouldCollapse
+        ? '<button class="btn btn-sm" style="padding:3px 10px;font-size:11px" onclick="window._tpoExpanded[\''+expandKey+'\']=!window._tpoExpanded[\''+expandKey+'\'];renderTeamPO()">'+(isExpanded?'접기':'펼치기')+'</button>'
+        : '';
+      const hdrBorder=shouldCollapse?'':'border-bottom:1px solid var(--line);';
+      html+='<div style="padding:8px 12px;background:var(--bg3);display:flex;justify-content:space-between;align-items:center;'+hdrBorder+'">'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+        +'<span style="font-size:12px;font-weight:600;color:var(--text)">세트 '+(si+1)+'</span>'
+        +setStatusHtml
+        +'</div>'
+        +expandBtnHtml
+        +'</div>';
+
+      // ── 세트 상세 내용 (접힌 경우 숨김) ──
+      if(!shouldCollapse||isExpanded){
+        if(setActive||setDone){
+          // 스코어보드
+          if(setDone||(set&&set.games.some(g=>g&&g.winnerId!==null))){
+            const scoreRowsA=[], scoreRowsB=[];
+            for(let gi2=0;gi2<3;gi2++){
+              const g2=set?set.games[gi2]:null;
+              const gd2=g2&&g2.winnerId!==null;
+              const gw1_2=gd2&&g2.winnerId===g2.p1id;
+              const gw2_2=gd2&&g2.winnerId===g2.p2id;
+              scoreRowsA.push(gd2
+                ? `<span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${gw1_2?'var(--green)':'var(--red)'}">${g2.p1score}</span>`
+                : `<span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--text3)">-</span>`);
+              scoreRowsB.push(gd2
+                ? `<span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${gw2_2?'var(--green)':'var(--red)'}">${g2.p2score}</span>`
+                : `<span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--text3)">-</span>`);
+            }
+            const diffVal=Math.abs(totA-totB);
+            const diffColor=totA>totB?'color:var(--green)':totA<totB?'color:var(--red)':'color:var(--text3)';
+            const totColorA=totA>totB?'var(--green)':totA<totB?'var(--red)':'var(--text)';
+            const totColorB=totB>totA?'var(--green)':totB<totA?'var(--red)':'var(--text)';
+            html+=`<div style="padding:10px 12px;background:rgba(255,255,255,.025);border-top:1px solid var(--line)">
+              <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:4px;margin-bottom:8px">
+                <div style="display:flex;justify-content:flex-end;gap:10px">${scoreRowsA.join('')}</div>
+                <span style="font-size:10px;color:var(--text3);text-align:center;padding:0 4px">경기 점수</span>
+                <div style="display:flex;justify-content:flex-start;gap:10px">${scoreRowsB.join('')}</div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:4px">
+                <div style="text-align:right"><span style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${totColorA}">${totA}</span></div>
+                <div style="text-align:center;padding:0 8px">
+                  <div style="font-size:10px;color:var(--text3);margin-bottom:1px">점수차</div>
+                  <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;${diffColor}">${diffVal>0?diffVal:'-'}</div>
+                </div>
+                <div style="text-align:left"><span style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${totColorB}">${totB}</span></div>
+              </div>
+            </div>`;
           }
-          const diffVal=Math.abs(totA-totB);
-          const diffColor=totA>totB?'color:var(--green)':totA<totB?'color:var(--red)':'color:var(--text3)';
-          const totColorA=totA>totB?'var(--green)':totA<totB?'var(--red)':'var(--text)';
-          const totColorB=totB>totA?'var(--green)':totB<totA?'var(--red)':'var(--text)';
-          html+=`<div style="padding:10px 12px;background:rgba(255,255,255,.025);border-top:1px solid var(--line)">
-            <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:4px;margin-bottom:8px">
-              <div style="display:flex;justify-content:flex-end;gap:10px">
-                ${scoreRowsA.join('')}
+          // 3경기 카드
+          for(let gi=0;gi<3;gi++){
+            const g=set?set.games[gi]:null;
+            const gDone=g&&g.winnerId!==null;
+            // 세트 완료 후 펼쳤을 때: 완료된 경기만 표시
+            if(setDone&&!gDone) continue;
+            const gw1=gDone&&g.winnerId===g.p1id;
+            const gw2=gDone&&g.winnerId===g.p2id;
+            const p1id=g?g.p1id:(hasPlayers?playersA[gi]:null);
+            const p2id=g?g.p2id:(hasPlayers?playersB[gi]:null);
+            const p1=p1id?sp(p1id):null;
+            const p2=p2id?sp(p2id):null;
+            const prevGDone=gi===0||(set&&set.games[gi-1]&&set.games[gi-1].winnerId!==null);
+            const canPlay=!gDone&&setActive&&prevGDone&&!setDone&&hasPlayers&&p1&&p2;
+            html+=`<div style="padding:8px 12px;border-top:1px solid var(--line);background:${gDone?'rgba(255,255,255,.015)':''}">
+              <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px">
+                <div style="text-align:right">
+                  <span style="font-size:12px;color:var(--text3);margin-right:4px">${p1?p1.team||'':''}</span>
+                  <span style="font-size:13px;font-weight:${gw1?'700':'500'};color:${gw1?'var(--green)':gDone?'var(--red)':'var(--text)'}">${p1?p1.name:'?'}</span>
+                  ${gDone?`<span style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:${gw1?'var(--green)':'var(--red)'};margin-left:8px">${g.p1score}</span>`:''}
+                </div>
+                <span style="color:var(--text3);font-size:11px;text-align:center">${gi+1}경기</span>
+                <div style="text-align:left">
+                  ${gDone?`<span style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:${gw2?'var(--green)':'var(--red)'};margin-right:8px">${g.p2score}</span>`:''}
+                  <span style="font-size:13px;font-weight:${gw2?'700':'500'};color:${gw2?'var(--green)':gDone?'var(--red)':'var(--text)'}">${p2?p2.name:'?'}</span>
+                  <span style="font-size:12px;color:var(--text3);margin-left:4px">${p2?p2.team||'':''}</span>
+                </div>
               </div>
-              <span style="font-size:10px;color:var(--text3);text-align:center;padding:0 4px">경기 점수</span>
-              <div style="display:flex;justify-content:flex-start;gap:10px">
-                ${scoreRowsB.join('')}
-              </div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:4px">
-              <div style="text-align:right">
-                <span style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${totColorA}">${totA}</span>
-              </div>
-              <div style="text-align:center;padding:0 8px">
-                <div style="font-size:10px;color:var(--text3);margin-bottom:1px">점수차</div>
-                <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;${diffColor}">${diffVal>0?diffVal:'-'}</div>
-              </div>
-              <div style="text-align:left">
-                <span style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${totColorB}">${totB}</span>
-              </div>
-            </div>
-          </div>`;
-        } // end scoreboard
-        // 3경기 카드
-        for(let gi=0;gi<3;gi++){
-          const g=set?set.games[gi]:null;
-          const gDone=g&&g.winnerId!==null;
-          const gw1=gDone&&g.winnerId===g.p1id;
-          const gw2=gDone&&g.winnerId===g.p2id;
-          const p1id=g?g.p1id:(hasPlayers?playersA[gi]:null);
-          const p2id=g?g.p2id:(hasPlayers?playersB[gi]:null);
-          const p1=p1id?sp(p1id):null;
-          const p2=p2id?sp(p2id):null;
-          // 이 경기 진행 가능: 이전 경기 완료 && 세트 미완료 && 현재 세트 활성
-          const prevGDone=gi===0||(set&&set.games[gi-1]&&set.games[gi-1].winnerId!==null);
-          const canPlay=!gDone&&setActive&&prevGDone&&!setDone&&hasPlayers&&p1&&p2;
-
-          html+=`<div style="padding:8px 12px;border-top:1px solid var(--line);background:${gDone?'rgba(255,255,255,.015)':''}">
-            <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px">
-              <div style="text-align:right">
-                <span style="font-size:12px;color:var(--text3);margin-right:4px">${p1?p1.team||'':''}</span>
-                <span style="font-size:13px;font-weight:${gw1?'700':'500'};color:${gw1?'var(--green)':gDone?'var(--red)':'var(--text)'}">${p1?p1.name:'?'}</span>
-                ${gDone?`<span style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:${gw1?'var(--green)':'var(--red)'};margin-left:8px">${g.p1score}</span>`:''}
-              </div>
-              <span style="color:var(--text3);font-size:11px;text-align:center">${gi+1}경기</span>
-              <div style="text-align:left">
-                ${gDone?`<span style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:${gw2?'var(--green)':'var(--red)'};margin-right:8px">${g.p2score}</span>`:''}
-                <span style="font-size:13px;font-weight:${gw2?'700':'500'};color:${gw2?'var(--green)':gDone?'var(--red)':'var(--text)'}">${p2?p2.name:'?'}</span>
-                <span style="font-size:12px;color:var(--text3);margin-left:4px">${p2?p2.team||'':''}</span>
-              </div>
-            </div>
-            ${canPlay?`<button class="btn btn-sm btn-green" style="width:100%;margin-top:6px" onclick="startTeamPOGame('${phase}',${si},${gi})">경기 시작</button>`:''}
-          </div>`;
+              ${canPlay?`<button class="btn btn-sm btn-green" style="width:100%;margin-top:6px" onclick="startTeamPOGame('${phase}',${si},${gi})">경기 시작</button>`:''}
+            </div>`;
+          }
+        } else if(!setActive){
+          html+=`<div style="padding:10px 12px;color:var(--text3);font-size:12px;text-align:center">이전 세트 완료 후 진행됩니다.</div>`;
         }
-      } else if(!setActive){
-        html+=`<div style="padding:10px 12px;color:var(--text3);font-size:12px;text-align:center">이전 세트 완료 후 진행됩니다.</div>`;
       }
       html+=`</div>`;
-
-      if(m.winner) break; // 승자 결정 후 추가 세트 표시 안 함
+      if(m.winner) break;
     }
 
     // 출전 선수 관리
@@ -4911,7 +5566,6 @@ function renderTeamPO(){
 
   el.innerHTML=html;
 }
-
 function advanceTeamPO(donePhase,nextPhase){
   const po=S.teamPO;
   const done=po.matches[donePhase];
