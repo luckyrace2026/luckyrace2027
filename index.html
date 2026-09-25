@@ -2441,17 +2441,7 @@ function renderPeriodPlayer(from,to,el){
     done.forEach(m=>{
       const isP1=m.p1id===p.id;cumScore+=isP1?m.p1score:m.p2score;
       if(m.isDraw)draws++;else if(m.winnerId===p.id)wins++;else losses++;
-      if(!seenG.has(m.gameNum)){
-        seenG.add(m.gameNum);
-        let rank=null;
-        if(S.seasonRanks&&S.seasonRanks[m.gameNum]&&S.seasonRanks[m.gameNum][p.id]!=null){
-          rank=S.seasonRanks[m.gameNum][p.id];
-        } else {
-          const rk=isP1?m.p1spts:m.p2spts;
-          if(rk!=null) rank=rk;
-        }
-        if(rank!=null) sPts+=SPTS_BY_RANK[rank]||0;
-      }
+      if(!seenG.has(m.gameNum)){const rk=isP1?m.p1spts:m.p2spts;if(rk!=null){sPts+=SPTS_BY_RANK[rk]||0;seenG.add(m.gameNum);}}
     });
     const g=done.length;
     const pts=parseFloat((sPts+wins*0.5+draws*0.25).toFixed(2));
@@ -2492,39 +2482,21 @@ function renderPeriodTeam(from,to,el){
   const teamNames=[...new Set(S.players.map(p=>p.team||'팀 없음'))];
   const rows=teamNames.map(tn=>{
     const members=S.players.filter(p=>(p.team||'팀 없음')===tn);
-    let wins=0,draws=0,losses=0,cumScore=0,sPts=0;
-
-    // 선수별로 개별 집계 (같은 gameNum에 팀원 여럿이 각자 다른 경기를 할 수 있음)
-    members.forEach(p=>{
-      const done=S.matches.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'
-        &&parseInt(m.gameNum)>=from&&parseInt(m.gameNum)<=to
-        &&(m.p1id===p.id||m.p2id===p.id));
-      const seenG=new Set();
-      done.forEach(m=>{
-        const isP1=m.p1id===p.id;
-        cumScore+=isP1?m.p1score:m.p2score;
-        if(m.isDraw)draws++;else if(m.winnerId===p.id)wins++;else losses++;
-        // 승점: seasonRanks 우선, 폴백 spts
-        if(!seenG.has(m.gameNum)){
-          seenG.add(m.gameNum);
-          let rank=null;
-          if(S.seasonRanks&&S.seasonRanks[m.gameNum]&&S.seasonRanks[m.gameNum][p.id]!=null){
-            rank=S.seasonRanks[m.gameNum][p.id];
-          } else {
-            const rk=isP1?m.p1spts:m.p2spts;
-            if(rk!=null) rank=rk;
-          }
-          if(rank!=null) sPts+=SPTS_BY_RANK[rank]||0;
-        }
-      });
+    const done=S.matches.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'
+      &&parseInt(m.gameNum)>=from&&parseInt(m.gameNum)<=to
+      &&(members.some(p=>p.id===m.p1id)||members.some(p=>p.id===m.p2id)));
+    let wins=0,draws=0,losses=0,cumScore=0,sPts=0;const seenMap={};
+    done.forEach(m=>{
+      const myMember=members.find(p=>p.id===m.p1id||p.id===m.p2id);if(!myMember)return;
+      const isP1=m.p1id===myMember.id;
+      cumScore+=isP1?m.p1score:m.p2score;
+      if(m.isDraw)draws++;else if(m.winnerId===myMember.id)wins++;else losses++;
+      if(!seenMap[m.gameNum]){const rk=isP1?m.p1spts:m.p2spts;if(rk!=null){sPts+=SPTS_BY_RANK[rk]||0;seenMap[m.gameNum]=true;}}
     });
-
-    const g=wins+draws+losses;
+    const g=done.length;
     const pts=parseFloat((sPts+wins*0.5+draws*0.25).toFixed(2));
-    const avg=g>0?Math.round(cumScore/g):0;
-    return{name:tn,pts,avg,wins,draws,losses,g,members:members.length};
+    return{name:tn,pts,avg:g>0?Math.round(cumScore/g):0,wins,draws,losses,g,members:members.length};
   }).sort((a,b)=>b.pts-a.pts);
-
   let rank=1;
   const ranked=rows.map((r,i)=>{if(i>0&&r.pts===rows[i-1].pts)r.rank=rows[i-1].rank;else r.rank=rank;rank++;return r;});
   const topRank=ranked[0]?.rank||1;
@@ -2549,6 +2521,13 @@ function renderPeriodTeam(from,to,el){
     ].join('');
     return `<tr style="${style}">${cells}</tr>`;
   }).join('');
+  const headers=['순위','팀','승점','평균','W','D','L','경기수'].map(h=>
+    `<th style="padding:7px 8px;font-size:11px;color:var(--text3);font-weight:600;border-bottom:1px solid var(--line);white-space:nowrap;text-align:${['승점','평균'].includes(h)?'right':['W','D','L','경기수'].includes(h)?'center':'left'}">${h}</th>`
+  ).join('');
+  el.innerHTML=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>${headers}</tr></thead><tbody>${trs}</tbody></table></div>`
+    +`<p style="font-size:11px;color:var(--text3);margin-top:6px">* ${from}경기 ~ ${to}경기 / 팀 경기수는 팀원 개인 경기 합산 / 형광색 = 1위</p>`;
+}
+
 
 function detailPtsPerGame(){
   const sorted=detailSortedPlayers();
