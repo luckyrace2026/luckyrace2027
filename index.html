@@ -964,28 +964,44 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
 (function(){
   try{
   const firebaseConfig = {
-    databaseURL: "https://lr-2027-default-rtdb.firebaseio.com/"
+    apiKey: "AIzaSyD1Hh9HnKuQiEGyHurF4Vr_H7CvGSNxWpc",
+    authDomain: "lr-2027.firebaseapp.com",
+    databaseURL: "https://lr-2027-default-rtdb.firebaseio.com",
+    projectId: "lr-2027",
+    storageBucket: "lr-2027.firebasestorage.app",
+    messagingSenderId: "4670131976",
+    appId: "1:4670131976:web:6546c6ce41eb3a5b94a6bd",
+    measurementId: "G-NFS2YLJ2TZ"
   };
 
   firebase.initializeApp(firebaseConfig);
   const _db = firebase.database();
-  // 루트: lr2027_root (currentSeason + allSeasons + currentSeasonKey 통합 저장)
   const _rootRef = _db.ref('lr2027_root');
   const _legacyRef = _db.ref('lr2027');
 
-  // 원격 데이터를 앱에 적용
+  // 아직 window.onload 전이면 보류, 이후 즉시 처리
+  let _appReady = false;
+  let _pendingRemote = null;
+
   function applyRemote(remote) {
     if (!remote) return;
-    const localS = window.S;
-    if (!localS) return;
 
-    // 구버전(currentSeason 없는 flat 구조) 호환
-    const remoteS   = remote.currentSeason || remote;
-    const remoteAll = remote.allSeasons || null;
+    // app이 아직 준비 안 됐으면 보류
+    if (!_appReady || !window.S) {
+      _pendingRemote = remote;
+      return;
+    }
+
+    const localS = window.S;
+    const remoteS    = remote.currentSeason || remote; // 구버전 flat 호환
+    const remoteAll  = remote.allSeasons    || null;
     const remoteCurKey = remote.currentSeasonKey || null;
 
-    // updatedAt 비교: 원격이 더 최신일 때만 적용
-    if (localS.updatedAt && remoteS.updatedAt && remoteS.updatedAt <= localS.updatedAt) return;
+    // updatedAt 비교
+    // 로컬에 updatedAt이 없으면 (=새 기기, 빈 상태) → 무조건 원격 적용
+    // 로컬 updatedAt이 있고 원격보다 최신이면 → 무시 (내가 더 최신)
+    if (localS.updatedAt && remoteS.updatedAt &&
+        remoteS.updatedAt <= localS.updatedAt) return;
 
     // currentSeason 적용
     Object.keys(localS).forEach(k => { delete localS[k]; });
@@ -996,7 +1012,6 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
     if (remoteAll) {
       try { localStorage.setItem('lr_seasons', JSON.stringify(remoteAll)); } catch(e) {}
     }
-    // currentSeasonKey 적용
     if (remoteCurKey) {
       try { localStorage.setItem('lr_current_season', remoteCurKey); } catch(e) {}
     }
@@ -1012,13 +1027,22 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       if (typeof window.showView === 'function') window.showView('view-setup');
       if (typeof window.renderSetupList === 'function') window.renderSetupList();
     }
-    if (typeof window.showSyncBadge === 'function') window.showSyncBadge('\ud83d\udd04 동기화됨');
+    if (typeof window.showSyncBadge === 'function') window.showSyncBadge('\uD83D\uDD04 동기화됨');
   }
+
+  // app 준비 완료 신호 — window.onload 마지막에 호출됨
+  window._fbAppReady = function() {
+    _appReady = true;
+    if (_pendingRemote) {
+      const p = _pendingRemote;
+      _pendingRemote = null;
+      applyRemote(p);
+    }
+  };
 
   window.connectFirebase = function() {
     let connected = false;
 
-    // 연결 상태 감지
     _db.ref('.info/connected').on('value', (snap) => {
       const dot = document.getElementById('fb-status');
       if (!dot) return;
@@ -1026,7 +1050,6 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       dot.style.background = connected ? '#4caf7d' : '#ff5c5c';
     });
 
-    // 신규 루트 노드 실시간 구독
     _rootRef.on('value', (snapshot) => {
       const dot = document.getElementById('fb-status');
       if (dot && !connected) dot.style.background = '#4caf7d';
@@ -1040,10 +1063,8 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       if (dot) dot.style.background = '#ff5c5c';
     });
 
-    // 저장: currentSeason + allSeasons + currentSeasonKey 통합 저장
     window._fbSave = function(data) {
-      let allSeasons = null;
-      let currentSeasonKey = null;
+      let allSeasons = null, currentSeasonKey = null;
       try {
         allSeasons = JSON.parse(localStorage.getItem('lr_seasons') || 'null');
         currentSeasonKey = localStorage.getItem('lr_current_season') || null;
@@ -1060,9 +1081,11 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       });
     };
   };
+
   }catch(e){
     console.warn('Firebase 초기화 실패 (로컬 파일 실행 시 정상):', e.message);
     window.connectFirebase = function(){};
+    window._fbAppReady = function(){};
   }
 })();
 </script>
@@ -2803,8 +2826,11 @@ window.onload=()=>{
   repairBracket();
   if(S.init){showView('view-main');refreshAll();}
   else{showView('view-setup');renderSetupList();}
+  renderSeasonSelect();
   if(typeof window.connectFirebase==='function')window.connectFirebase();
   else{const t=setInterval(()=>{if(typeof window.connectFirebase==='function'){window.connectFirebase();clearInterval(t);}},50);}
+  // app 준비 완료 — Firebase 보류 데이터 처리
+  if(typeof window._fbAppReady==='function')window._fbAppReady();
 };
 
 // ─── SETUP ───
