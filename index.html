@@ -964,67 +964,100 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
 (function(){
   try{
   const firebaseConfig = {
-    apiKey: "AIzaSyAyYwqEpHbJTAtHxjBrHdrt-CURS4eDgYA",
-    authDomain: "lr-2026-edd00.firebaseapp.com",
-    databaseURL: "https://lr-2026-edd00-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "lr-2026-edd00",
-    storageBucket: "lr-2026-edd00.firebasestorage.app",
-    messagingSenderId: "431709705453",
-    appId: "1:431709705453:web:bfa85561b71742f01be8e4",
-    measurementId: "G-2ZP8Z4HZDK"
+    databaseURL: "https://lr-2027-default-rtdb.firebaseio.com/"
   };
 
   firebase.initializeApp(firebaseConfig);
   const _db = firebase.database();
-  const _dbRef = _db.ref('lr2027');
-  const _connRef = _db.ref('.info/connected');
+  // 루트: lr2027_root (currentSeason + allSeasons + currentSeasonKey 통합 저장)
+  const _rootRef = _db.ref('lr2027_root');
+  const _legacyRef = _db.ref('lr2027');
+
+  // 원격 데이터를 앱에 적용
+  function applyRemote(remote) {
+    if (!remote) return;
+    const localS = window.S;
+    if (!localS) return;
+
+    // 구버전(currentSeason 없는 flat 구조) 호환
+    const remoteS   = remote.currentSeason || remote;
+    const remoteAll = remote.allSeasons || null;
+    const remoteCurKey = remote.currentSeasonKey || null;
+
+    // updatedAt 비교: 원격이 더 최신일 때만 적용
+    if (localS.updatedAt && remoteS.updatedAt && remoteS.updatedAt <= localS.updatedAt) return;
+
+    // currentSeason 적용
+    Object.keys(localS).forEach(k => { delete localS[k]; });
+    Object.keys(remoteS).forEach(k => { localS[k] = remoteS[k]; });
+    try { localStorage.setItem('lr2027', JSON.stringify(localS)); } catch(e) {}
+
+    // allSeasons 적용
+    if (remoteAll) {
+      try { localStorage.setItem('lr_seasons', JSON.stringify(remoteAll)); } catch(e) {}
+    }
+    // currentSeasonKey 적용
+    if (remoteCurKey) {
+      try { localStorage.setItem('lr_current_season', remoteCurKey); } catch(e) {}
+    }
+
+    if (typeof window.repairBracket === 'function') window.repairBracket();
+    if (typeof window.ensureEntries === 'function') window.ensureEntries();
+    if (typeof window.renderSeasonSelect === 'function') window.renderSeasonSelect();
+
+    if (localS.init) {
+      if (typeof window.showView === 'function') window.showView('view-main');
+      if (typeof window.refreshAll === 'function') window.refreshAll();
+    } else {
+      if (typeof window.showView === 'function') window.showView('view-setup');
+      if (typeof window.renderSetupList === 'function') window.renderSetupList();
+    }
+    if (typeof window.showSyncBadge === 'function') window.showSyncBadge('\ud83d\udd04 동기화됨');
+  }
 
   window.connectFirebase = function() {
     let connected = false;
 
-    // 연결 상태: .info/connected 감지
+    // 연결 상태 감지
     _db.ref('.info/connected').on('value', (snap) => {
       const dot = document.getElementById('fb-status');
       if (!dot) return;
-      const isConn = snap.val() === true;
-      dot.style.background = isConn ? '#4caf7d' : '#ff5c5c';
-      connected = isConn;
+      connected = snap.val() === true;
+      dot.style.background = connected ? '#4caf7d' : '#ff5c5c';
     });
 
-    // 데이터 수신 — 첫 수신 시에도 초록불 보장
-    _dbRef.on('value', (snapshot) => {
-      // 초록불 보장 (DB에 데이터 없어도 연결은 됐으므로)
+    // 신규 루트 노드 실시간 구독
+    _rootRef.on('value', (snapshot) => {
       const dot = document.getElementById('fb-status');
       if (dot && !connected) dot.style.background = '#4caf7d';
-
-      const remote = snapshot.val();
-      if (!remote) return;
-
-      const localS = window.S;
-      if (!localS) return;
-
-      if (!localS.updatedAt || (remote.updatedAt && remote.updatedAt > localS.updatedAt)) {
-        Object.keys(localS).forEach(k => { delete localS[k]; });
-        Object.keys(remote).forEach(k => { localS[k] = remote[k]; });
-        if (typeof window.repairBracket === 'function') window.repairBracket();
-        try { localStorage.setItem('lr2027', JSON.stringify(localS)); } catch(e) {}
-        if (localS.init) {
-          if (typeof window.showView === 'function') window.showView('view-main');
-          if (typeof window.refreshAll === 'function') window.refreshAll();
-        } else {
-          if (typeof window.showView === 'function') window.showView('view-setup');
-          if (typeof window.renderSetupList === 'function') window.renderSetupList();
-        }
-        if (typeof window.showSyncBadge === 'function') window.showSyncBadge('🔄 동기화됨');
-      }
+      applyRemote(snapshot.val());
     }, (error) => {
+      console.warn('lr2027_root 읽기 실패, 구버전 시도:', error.message);
+      _legacyRef.once('value').then(snap => {
+        if (snap.val()) applyRemote(snap.val());
+      }).catch(() => {});
       const dot = document.getElementById('fb-status');
       if (dot) dot.style.background = '#ff5c5c';
-      console.error('Firebase 오류:', error);
     });
 
+    // 저장: currentSeason + allSeasons + currentSeasonKey 통합 저장
     window._fbSave = function(data) {
-      _dbRef.set(data).catch(e => console.error('Firebase 저장 실패:', e));
+      let allSeasons = null;
+      let currentSeasonKey = null;
+      try {
+        allSeasons = JSON.parse(localStorage.getItem('lr_seasons') || 'null');
+        currentSeasonKey = localStorage.getItem('lr_current_season') || null;
+      } catch(e) {}
+      const payload = {
+        currentSeason: data,
+        allSeasons: allSeasons,
+        currentSeasonKey: currentSeasonKey,
+        savedAt: Date.now()
+      };
+      _rootRef.set(payload).catch(e => {
+        console.error('Firebase 저장 실패:', e);
+        _legacyRef.set(data).catch(() => {});
+      });
     };
   };
   }catch(e){
@@ -2023,6 +2056,8 @@ window.repairBracket = repairBracket;
 window.refreshAll = refreshAll;
 window.showView = showView;
 window.renderSetupList = renderSetupList;
+window.ensureEntries = ensureEntries;
+window.renderSeasonSelect = renderSeasonSelect;
 window.showSyncBadge = showSyncBadge;
 // 세부기록 정렬 함수 전역 노출
 window.dtSort = dtSort;
