@@ -1376,7 +1376,8 @@ function calcAlltimeTeamStats(){
   // 팀 목록은 현재 시즌 기준
   const teamNames = [...new Set((S.players||[]).map(p=>p.team||'팀 없음'))];
   return teamNames.map(tn => {
-    let pts=0, cumScore=0, wins=0, losses=0, g=0, vrSum=0;
+    let pts=0, cumScore=0, wins=0, losses=0, g=0;
+    const memberVrList=[];
     const memberIds = (S.players||[]).filter(p=>(p.team||'팀 없음')===tn).map(p=>p.id);
     seasonKeys.forEach(sk=>{
       const sd=all[sk]; if(!sd||!sd.matches) return;
@@ -1398,7 +1399,7 @@ function calcAlltimeTeamStats(){
           if(sr[gn]&&sr[gn][pid]!=null) pts+=SPTS_BY_RANK[sr[gn][pid]]||0;
         });
       });
-      // 가치평점 근사
+      // 가치평점: 선수별 개별 계산
       memberIds.forEach(pid=>{
         const pd=done.filter(m=>m.p1id===pid||m.p2id===pid);
         if(!pd.length) return;
@@ -1411,12 +1412,15 @@ function calcAlltimeTeamStats(){
         },0)/allPlayers.length:1;
         let sPts2=0;
         Object.keys(sr).forEach(gn=>{if(sr[gn]&&sr[gn][pid]!=null)sPts2+=SPTS_BY_RANK[sr[gn][pid]]||0;});
-        if(sPts2>0&&pScore>0&&gAvg>0) vrSum+=Math.log10(sPts2)+(pScore/gAvg);
+        if(sPts2>0&&pScore>0&&gAvg>0) memberVrList.push(Math.log10(sPts2)+(pScore/gAvg));
       });
     });
+    // 상위 4명만 합산
+    memberVrList.sort((a,b)=>b-a);
+    const vrSum=parseFloat(memberVrList.slice(0,4).reduce((a,v)=>a+v,0).toFixed(3));
     const avgScore=g?Math.round(cumScore/g):0;
     const winRate=g?parseFloat(((wins/g)*100).toFixed(1)):0;
-    return{name:tn, pts:parseFloat(pts.toFixed(1)), avgScore, winRate, vrSum:parseFloat(vrSum.toFixed(3)), g, wins, losses};
+    return{name:tn, pts:parseFloat(pts.toFixed(1)), avgScore, winRate, vrSum, g, wins, losses};
   });
 }
 
@@ -1825,8 +1829,9 @@ function getTeams(){
     const totalLosses=st.reduce((a,s)=>a+s.losses,0);
     const avgScore=totalGames>0?Math.round(totalScore/totalGames):0;
     const winRate=totalGames>0?parseFloat((totalWins/totalGames*100).toFixed(1)):0;
-    // 수정 8: 팀 가치 평점 = 팀 선수들의 가치 평점 합
-    const teamValueRating=parseFloat(st.reduce((a,s)=>a+s.valueRating,0).toFixed(4));
+    // 팀 가치 평점 = 가치 평점 상위 4명의 합
+    const top4vr=[...st].sort((a,b)=>b.valueRating-a.valueRating).slice(0,4);
+    const teamValueRating=parseFloat(top4vr.reduce((a,s)=>a+s.valueRating,0).toFixed(4));
     const uniqueGames=st.length>0?Math.max(...st.map(s=>s.uniqueGames)):0;
     return{...t,st,totalPts,totalScore,totalGames,totalWins,totalDraws,totalLosses,avgScore,winRate,teamValueRating,uniqueGames};
   });
