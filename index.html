@@ -428,6 +428,7 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       <button class="sub-btn" data-sub="scoreContrib" onclick="detailGoto('scoreContrib',this)">점수 기여도</button>
       <button class="sub-btn" data-sub="highlow" onclick="detailGoto('highlow',this)">최고점&amp;최저점</button>
       <button class="sub-btn" data-sub="realPts" onclick="detailGoto('realPts',this)">실질적 승점</button>
+      <button class="sub-btn" data-sub="special" onclick="detailGoto('special',this)">특수 기록</button>
     </div>
     <!-- 서브탭 콘텐츠 -->
     <div id="detail-content" style="overflow-x:hidden"></div>
@@ -2298,6 +2299,7 @@ function detailGoto(sub, btn){
     upset:detailUpset, h2h:detailH2H, firstlast:detailFirstLast,
     period:detailPeriod, ptsperGame:detailPtsPerGame, scoreValue:detailScoreValue,
     scoreContrib:detailScoreContrib, highlow:detailHighLow, realPts:detailRealPts,
+    special:detailSpecial,
   };
   try{
     var html=renders[sub]?renders[sub]():'';
@@ -2843,6 +2845,337 @@ function detailRealPts(){
   +'</p>';
 }
 
+
+/* ── 특수 기록 ────────────────────────────────────────── */
+function detailSpecial(){
+  const allSeasons = getAllSeasons();
+  allSeasons[CURRENT_SEASON] = S;
+  const seasonKeys = Object.keys(allSeasons).sort();
+
+  const pMap = {};
+  seasonKeys.forEach(sk=>{
+    (allSeasons[sk].players||[]).forEach(p=>{
+      if(p.id && !pMap[p.id]) pMap[p.id]={name:p.name||'?',team:p.team||''};
+    });
+  });
+  const nm  = id => pMap[id]?pMap[id].name:'?';
+  const tm  = id => pMap[id]?pMap[id].team:'';
+  const nmt = id => tm(id)?`${tm(id)} ${nm(id)}`:nm(id);
+
+  const RO   = ['예선전','16강전','8강전','준결승','결승'];
+  const SPTS = [0,100,90,80,70,50,45,40,35,30,25,23,21,19,17,15,13,10,5,3,1];
+
+  // ── 진출 기준: seasonRanks 순위 기반 ─────────────────
+  // 16강 진출: 순위 1~16, 8강: 1~8, 준결승: 1~4, 결승: 1~2
+  const ROUND_RANK_LIMIT = {
+    '16강전': 16,
+    '8강전':   8,
+    '준결승':  4,
+    '결승':    2,
+  };
+
+  // ── 연속 진출 (순위 기반) ─────────────────────────────
+  function calcConsec(roundType){
+    const limit = ROUND_RANK_LIMIT[roundType];
+    const curStreak = {};
+    let top=null, prev=null;
+
+    seasonKeys.forEach(sk=>{
+      const sd = allSeasons[sk]; if(!sd) return;
+      const SR = sd.seasonRanks||{};
+
+      // 이 시즌 진행된 경기 번호 (seeded 기준)
+      const playedGames = (sd.bracket||[])
+        .filter(bg=>bg.seeded)
+        .map(bg=>parseInt(bg.gameNum))
+        .filter(n=>n>0)
+        .sort((a,b)=>a-b);
+      if(!playedGames.length) return;
+
+      // 이 시즌 출전 선수 집합
+      const players = new Set();
+      (sd.bracket||[]).forEach(bg=>{
+        (bg.rounds||[]).forEach(r=>(r.matches||[]).forEach(m=>{
+          if(m.p1id) players.add(m.p1id);
+          if(m.p2id) players.add(m.p2id);
+        }));
+      });
+
+      players.forEach(pid=>{ if(curStreak[pid]==null) curStreak[pid]=0; });
+
+      players.forEach(pid=>{
+        playedGames.forEach(gn=>{
+          const gns = gn+'경기';
+          // 이 경기에 출전했는지 확인
+          let inGame = false;
+          (sd.bracket||[]).forEach(bg=>{
+            if(parseInt(bg.gameNum)!==gn) return;
+            if(bg.rounds.some(r=>r.matches.some(m=>m.p1id===pid||m.p2id===pid))) inGame=true;
+          });
+          if(!inGame){ curStreak[pid]=0; return; }
+
+          // seasonRanks에서 이 경기의 순위 조회
+          const rank = SR[gns]&&SR[gns][pid]!=null ? SR[gns][pid] : null;
+
+          if(rank!=null && rank<=limit){
+            curStreak[pid]++;
+            const v = curStreak[pid];
+            if(!top){ top={pid,streak:v,sk}; }
+            else if(v>top.streak){ prev={...top}; top={pid,streak:v,sk}; }
+          } else {
+            curStreak[pid]=0;
+          }
+        });
+      });
+    });
+    return {top,prev};
+  }
+
+  // ── 연속 고득점 ───────────────────────────────────────
+  function calcConsecScore(threshold){
+    const curStreak={};
+    let top=null,prev=null;
+    seasonKeys.forEach(sk=>{
+      const sd=allSeasons[sk]; if(!sd) return;
+      const playedGames=(sd.bracket||[]).filter(bg=>bg.seeded).map(bg=>parseInt(bg.gameNum)).filter(n=>n>0).sort((a,b)=>a-b);
+      if(!playedGames.length) return;
+      const players=new Set();
+      (sd.bracket||[]).forEach(bg=>(bg.rounds||[]).forEach(r=>(r.matches||[]).forEach(m=>{if(m.p1id)players.add(m.p1id);if(m.p2id)players.add(m.p2id);})));
+      players.forEach(pid=>{ if(curStreak[pid]==null) curStreak[pid]=0; });
+      players.forEach(pid=>{
+        playedGames.forEach(gn=>{
+          let inGame=false;
+          (sd.bracket||[]).forEach(bg=>{if(parseInt(bg.gameNum)===gn&&bg.rounds.some(r=>r.matches.some(m=>m.p1id===pid||m.p2id===pid)))inGame=true;});
+          if(!inGame){curStreak[pid]=0;return;}
+          const scores=(sd.matches||[]).filter(m=>m.done&&parseInt(m.gameNum)===gn&&(m.p1id===pid||m.p2id===pid)).map(m=>m.p1id===pid?m.p1score:m.p2score);
+          const best=scores.length?Math.max(...scores):0;
+          if(best>=threshold){
+            curStreak[pid]++;
+            const v=curStreak[pid];
+            if(!top){top={pid,streak:v,sk};}
+            else if(v>top.streak){prev={...top};top={pid,streak:v,sk};}
+          } else { curStreak[pid]=0; }
+        });
+      });
+    });
+    return {top,prev};
+  }
+
+  // ── 연속 업셋 ─────────────────────────────────────────
+  function calcConsecUpset(){
+    const curStreak={};
+    let top=null,prev=null;
+    seasonKeys.forEach(sk=>{
+      const sd=allSeasons[sk]; if(!sd) return;
+      const stream=(sd.matches||[]).filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO');
+      stream.sort((a,b)=>{const ga=parseInt(a.gameNum),gb=parseInt(b.gameNum);if(ga!==gb)return ga-gb;return RO.indexOf(a.roundType)-RO.indexOf(b.roundType);});
+      const players=new Set();
+      stream.forEach(m=>{if(m.p1id)players.add(m.p1id);if(m.p2id)players.add(m.p2id);});
+      players.forEach(pid=>{ if(curStreak[pid]==null) curStreak[pid]=0; });
+      stream.forEach(m=>{
+        [m.p1id,m.p2id].forEach(pid=>{
+          if(!pid) return;
+          if(m.winnerId===pid&&m.upset){
+            curStreak[pid]++;
+            const v=curStreak[pid];
+            if(!top){top={pid,streak:v,sk};}
+            else if(v>top.streak){prev={...top};top={pid,streak:v,sk};}
+          } else if(m.p1id===pid||m.p2id===pid){
+            curStreak[pid]=0;
+          }
+        });
+      });
+    });
+    return {top,prev};
+  }
+
+  // ── 단일 시즌 최단 달성 ──────────────────────────────
+  function calcFastest(type, target){
+    let top=null,prev=null;
+    seasonKeys.forEach(sk=>{
+      const sd=allSeasons[sk]; if(!sd||!sd.matches) return;
+      const SR=sd.seasonRanks||{};
+      let seasonBest=null;
+      (sd.players||[]).forEach(p=>{
+        const pid=p.id;
+        const done=(sd.matches||[]).filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'&&(m.p1id===pid||m.p2id===pid));
+        done.sort((a,b)=>{const ga=parseInt(a.gameNum),gb=parseInt(b.gameNum);if(ga!==gb)return ga-gb;return RO.indexOf(a.roundType)-RO.indexOf(b.roundType);});
+        let cumPts=0,cumScore=0,cumWins=0;
+        const seenGames=new Set();
+        for(let i=0;i<done.length;i++){
+          const m=done[i];
+          const isP1=m.p1id===pid;
+          cumScore+=isP1?m.p1score:m.p2score;
+          if(m.winnerId===pid) cumWins++;
+          if(!seenGames.has(m.gameNum)){
+            seenGames.add(m.gameNum);
+            const rank=SR[m.gameNum]&&SR[m.gameNum][pid]!=null?SR[m.gameNum][pid]:(isP1?m.p1spts:m.p2spts);
+            if(rank!=null) cumPts+=SPTS[rank]||0;
+          }
+          if(m.winnerId===pid) cumPts+=0.5; else if(m.isDraw) cumPts+=0.25;
+          const val=type==='pts'?cumPts:type==='score'?cumScore:cumWins;
+          if(val>=target){
+            // achievedIn: 몇 경기(gameNum 기준)에서 달성했는지
+            const gn=parseInt(m.gameNum);
+            const rec={pid,sk,gameNum:gn};
+            if(!seasonBest||gn<seasonBest.gameNum){seasonBest=rec;}
+            break;
+          }
+        }
+      });
+      if(!seasonBest) return;
+      if(!top){top=seasonBest;}
+      else if(seasonBest.gameNum<top.gameNum){prev={...top};top=seasonBest;}
+      // 타이 무시
+    });
+    return {top,prev};
+  }
+
+  // ── 단일 시즌 최다 업셋 ──────────────────────────────
+  function calcMostUpsetsInSeason(){
+    let top=null,prev=null;
+    seasonKeys.forEach(sk=>{
+      const sd=allSeasons[sk]; if(!sd) return;
+      const cnts={};
+      (sd.matches||[]).filter(m=>m.done&&m.upset&&m.winnerId).forEach(m=>{cnts[m.winnerId]=(cnts[m.winnerId]||0)+1;});
+      let seasonBest=null;
+      Object.entries(cnts).forEach(([pid,cnt])=>{if(!seasonBest||cnt>seasonBest.cnt)seasonBest={pid,sk,cnt};});
+      if(!seasonBest) return;
+      if(!top){top=seasonBest;}
+      else if(seasonBest.cnt>top.cnt){prev={...top};top=seasonBest;}
+    });
+    return {top,prev};
+  }
+
+  // ── N경기 종료 시점 최다 승점 ────────────────────────
+  function calcPtsAfterGame(targetGn){
+    let top=null,prev=null;
+    seasonKeys.forEach(sk=>{
+      const sd=allSeasons[sk]; if(!sd) return;
+      const completedGames=new Set(
+        (sd.bracket||[])
+          .filter(bg=>bg.seeded&&bg.rounds.every(r=>r.matches.every(m=>m.done||(!m.p1id&&!m.p2id))))
+          .map(bg=>parseInt(bg.gameNum))
+          .filter(n=>n>0)
+      );
+      if(!completedGames.has(targetGn)) return;
+      const SR=sd.seasonRanks||{};
+      let seasonBest=null;
+      (sd.players||[]).forEach(p=>{
+        const pid=p.id;
+        let pts=0;
+        for(let gn=1;gn<=targetGn;gn++){
+          const gns=gn+'경기';
+          const gmatches=(sd.matches||[]).filter(m=>m.done&&m.gameNum===gns&&(m.p1id===pid||m.p2id===pid));
+          if(!gmatches.length) continue;
+          const rank=SR[gns]&&SR[gns][pid]!=null?SR[gns][pid]:null;
+          if(rank!=null) pts+=SPTS[rank]||0;
+          gmatches.forEach(m=>{if(m.winnerId===pid)pts+=0.5;else if(m.isDraw)pts+=0.25;});
+        }
+        const v=parseFloat(pts.toFixed(2));
+        if(v>0&&(!seasonBest||v>seasonBest.pts)) seasonBest={pid,sk,pts:v};
+      });
+      if(!seasonBest) return;
+      if(!top){top=seasonBest;}
+      else if(seasonBest.pts>top.pts){prev={...top};top=seasonBest;}
+    });
+    return {top,prev};
+  }
+
+  // ── CSS ───────────────────────────────────────────────
+  if(!document.getElementById('sp-style')){
+    const st=document.createElement('style');
+    st.id='sp-style';
+    st.textContent=`
+      .sp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px}
+      .sp-sec{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;font-family:'DM Mono',monospace;padding:10px 0 6px;border-top:1px solid var(--line);margin-top:6px}
+      .sp-sec:first-child{border-top:none;margin-top:0}
+      .sp-card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:9px 10px}
+      .sp-title{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-bottom:5px;line-height:1.4}
+      .sp-holder{font-size:13px;font-weight:600;color:var(--text)}
+      .sp-val{font-size:11px;color:var(--accent);font-family:'DM Mono',monospace;margin-top:2px}
+      .sp-season{font-size:10px;color:var(--text3);margin-top:1px}
+      .sp-prev{font-size:10px;color:var(--text3);margin-top:4px;padding-top:4px;border-top:1px solid var(--line)}
+      .sp-none{font-size:12px;color:var(--text3)}
+      @media(max-width:480px){.sp-grid{grid-template-columns:repeat(2,1fr)}}
+    `;
+    document.head.appendChild(st);
+  }
+
+  // ── 카드 렌더 ─────────────────────────────────────────
+  function card(title, top, valStr, seasonStr, prevStr){
+    if(!top) return `<div class="sp-card"><div class="sp-title">${title}</div><div class="sp-none">기록 없음</div></div>`;
+    return `<div class="sp-card">
+      <div class="sp-title">${title}</div>
+      <div class="sp-holder">${nmt(top.pid)}</div>
+      <div class="sp-val">${valStr}</div>
+      <div class="sp-season">${seasonStr}시즌</div>
+      ${prevStr?`<div class="sp-prev">(종전: ${prevStr})</div>`:''}
+    </div>`;
+  }
+
+  // ── 계산 ─────────────────────────────────────────────
+  const r16 = calcConsec('16강전');
+  const r8  = calcConsec('8강전');
+  const r4  = calcConsec('준결승');
+  const rF  = calcConsec('결승');
+  const hs7 = calcConsecScore(700);
+  const hs6 = calcConsecScore(600);
+  const fp100 = calcFastest('pts',100);
+  const fp200 = calcFastest('pts',200);
+  const fp300 = calcFastest('pts',300);
+  const fp400 = calcFastest('pts',400);
+  const fp500 = calcFastest('pts',500);
+  const fs10k = calcFastest('score',10000);
+  const fs20k = calcFastest('score',20000);
+  const fw10  = calcFastest('wins',10);
+  const fw15  = calcFastest('wins',15);
+  const fw20  = calcFastest('wins',20);
+  const upS   = calcMostUpsetsInSeason();
+  const upC   = calcConsecUpset();
+  const pg={};
+  [2,3,4,5,6,7,8,9,10].forEach(n=>{pg[n]=calcPtsAfterGame(n);});
+
+  // ── HTML 조립 ─────────────────────────────────────────
+  let html='';
+
+  html+=`<div class="sp-sec">📈 연속 진출 기록</div><div class="sp-grid">`;
+  [[r16,'최다 연속 16강 진출'],[r8,'최다 연속 8강 진출'],[r4,'최다 연속 준결승 진출'],
+   [rF,'최다 연속 결승 진출'],[hs7,'최다 연속 700점 기록'],[hs6,'최다 연속 600점 기록']].forEach(([r,lbl])=>{
+    const t=r.top, p=r.prev;
+    html+=card(lbl, t, t?`${t.streak}연속`:'', t?.sk||'',
+      p?`${nmt(p.pid)}, ${p.sk||''}시즌, ${p.streak}연속`:null);
+  });
+  html+='</div>';
+
+  html+=`<div class="sp-sec">⚡ 단일 시즌 최단 기간 달성</div><div class="sp-grid">`;
+  [[fp100,'승점 100pt 달성'],[fp200,'승점 200pt 달성'],[fp300,'승점 300pt 달성'],
+   [fp400,'승점 400pt 달성'],[fp500,'승점 500pt 달성'],[fs10k,'누적 10,000점 달성'],
+   [fs20k,'누적 20,000점 달성'],[fw10,'10승 달성'],[fw15,'15승 달성'],[fw20,'20승 달성']].forEach(([r,lbl])=>{
+    const t=r.top, p=r.prev;
+    html+=card(lbl, t, t?`${t.gameNum}경기`:'', t?.sk||'',
+      p?`${nmt(p.pid)}, ${p.sk||''}시즌, ${p.gameNum}경기`:null);
+  });
+  html+='</div>';
+
+  html+=`<div class="sp-sec">💥 업셋 기록</div><div class="sp-grid">`;
+  const usp=upS.prev, ucp=upC.prev;
+  html+=card('단일 시즌 최다 업셋', upS.top, upS.top?`${upS.top.cnt}회`:'', upS.top?.sk||'',
+    usp?`${nmt(usp.pid)}, ${usp.sk||''}시즌, ${usp.cnt}회`:null);
+  html+=card('최다 연속 업셋', upC.top, upC.top?`${upC.top.streak}연속`:'', upC.top?.sk||'',
+    ucp?`${nmt(ucp.pid)}, ${ucp.sk||''}시즌, ${ucp.streak}연속`:null);
+  html+='</div>';
+
+  html+=`<div class="sp-sec">🏅 경기 종료 시점 최다 승점</div><div class="sp-grid">`;
+  [2,3,4,5,6,7,8,9,10].forEach(n=>{
+    const r=pg[n], t=r.top, p=r.prev;
+    html+=card(`${n}경기 종료 시점`, t, t?`${t.pts}pt`:'', t?.sk||'',
+      p?`${nmt(p.pid)}, ${p.sk||''}시즌, ${p.pts}pt`:null);
+  });
+  html+='</div>';
+
+  return `<div style="padding-bottom:12px">${html}</div>`;
+}
 
 window.onload=()=>{
   window.S=S;
