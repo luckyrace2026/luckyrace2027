@@ -930,6 +930,9 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
     <p style="font-size:13px;color:var(--text2);margin-bottom:16px">시즌 데이터 관리 및 초기화</p>
     <button class="btn btn-red btn-block" style="margin-bottom:8px" onclick="resetSeason()">시즌 초기화 (경기 기록 삭제)</button>
     <button class="btn btn-red btn-block" style="margin-bottom:8px" onclick="fullReset()">전체 초기화 (선수 포함)</button>
+    <div style="border-top:1px solid var(--line);margin:12px 0 10px"></div>
+    <p style="font-size:11px;color:var(--text3);margin:0 0 8px">🔄 동기화</p>
+    <button class="btn btn-block" style="margin-bottom:8px;border-color:rgba(76,175,125,.4);color:var(--green)" onclick="window._fbForceUpload&&window._fbForceUpload()">☁ Firebase에 지금 업로드 (다른 기기 동기화)</button>
     <button class="btn btn-block" style="margin-bottom:8px;border-color:rgba(255,179,64,.4);color:var(--amber)" onclick="toggleMatchResetMode()">선택 경기 초기화</button>
     <button class="btn btn-block" style="margin-bottom:8px;border-color:rgba(212,240,76,.35);color:var(--accent)" onclick="openNextSeason()">🏁 다음 시즌 개막하기</button>
     <button class="btn btn-block" style="margin-bottom:8px;border-color:rgba(91,156,246,.4);color:var(--blue)" onclick="toggleMatchInputMode()">선택 경기 결과 입력</button>
@@ -977,115 +980,112 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
   firebase.initializeApp(firebaseConfig);
   const _db = firebase.database();
   const _rootRef = _db.ref('lr2027_root');
-  const _legacyRef = _db.ref('lr2027');
 
-  // 아직 window.onload 전이면 보류, 이후 즉시 처리
   let _appReady = false;
   let _pendingRemote = null;
 
   function applyRemote(remote) {
     if (!remote) return;
-
-    // app이 아직 준비 안 됐으면 보류
-    if (!_appReady || !window.S) {
-      _pendingRemote = remote;
-      return;
-    }
+    if (!_appReady || !window.S) { _pendingRemote = remote; return; }
 
     const localS = window.S;
-    const remoteS    = remote.currentSeason || remote; // 구버전 flat 호환
-    const remoteAll  = remote.allSeasons    || null;
+    const remoteS      = remote.currentSeason || remote;
+    const remoteAll    = remote.allSeasons    || null;
     const remoteCurKey = remote.currentSeasonKey || null;
 
-    // updatedAt 비교
-    // 로컬에 updatedAt이 없으면 (=새 기기, 빈 상태) → 무조건 원격 적용
-    // 로컬 updatedAt이 있고 원격보다 최신이면 → 무시 (내가 더 최신)
+    // 로컬 updatedAt이 없으면(새 기기) 무조건 적용
+    // 로컬이 더 최신이면 무시
     if (localS.updatedAt && remoteS.updatedAt &&
         remoteS.updatedAt <= localS.updatedAt) return;
 
-    // currentSeason 적용
+    // ── allSeasons 먼저 복원 (save() 호출 전 반드시 선행) ──
+    // save()는 allSeasons[CURRENT_SEASON]에 현재 S를 덮어씀
+    // → allSeasons를 먼저 써야 이전 시즌 데이터 오염 방지
+    if (remoteAll) {
+      try { localStorage.setItem('lr_seasons', JSON.stringify(remoteAll)); } catch(e) {}
+    }
+
+    // ── currentSeasonKey 복원 및 앱 전역 변수 동기화 ──
+    if (remoteCurKey) {
+      try { localStorage.setItem('lr_current_season', remoteCurKey); } catch(e) {}
+      // 앱 메인 스크립트의 CURRENT_SEASON 전역 변수 동기화
+      if (typeof window._setCURRENT_SEASON === 'function') {
+        window._setCURRENT_SEASON(remoteCurKey);
+      }
+    }
+
+    // ── currentSeason(S 객체) 적용 ──
     Object.keys(localS).forEach(k => { delete localS[k]; });
     Object.keys(remoteS).forEach(k => { localS[k] = remoteS[k]; });
     try { localStorage.setItem('lr2027', JSON.stringify(localS)); } catch(e) {}
 
-    // allSeasons 적용
-    if (remoteAll) {
-      try { localStorage.setItem('lr_seasons', JSON.stringify(remoteAll)); } catch(e) {}
-    }
-    if (remoteCurKey) {
-      try { localStorage.setItem('lr_current_season', remoteCurKey); } catch(e) {}
-    }
-
-    if (typeof window.repairBracket === 'function') window.repairBracket();
-    if (typeof window.ensureEntries === 'function') window.ensureEntries();
+    if (typeof window.repairBracket      === 'function') window.repairBracket();
+    if (typeof window.ensureEntries      === 'function') window.ensureEntries();
     if (typeof window.renderSeasonSelect === 'function') window.renderSeasonSelect();
 
     if (localS.init) {
-      if (typeof window.showView === 'function') window.showView('view-main');
+      if (typeof window.showView   === 'function') window.showView('view-main');
       if (typeof window.refreshAll === 'function') window.refreshAll();
     } else {
-      if (typeof window.showView === 'function') window.showView('view-setup');
+      if (typeof window.showView        === 'function') window.showView('view-setup');
       if (typeof window.renderSetupList === 'function') window.renderSetupList();
     }
     if (typeof window.showSyncBadge === 'function') window.showSyncBadge('\uD83D\uDD04 동기화됨');
   }
 
-  // app 준비 완료 신호 — window.onload 마지막에 호출됨
   window._fbAppReady = function() {
     _appReady = true;
-    if (_pendingRemote) {
-      const p = _pendingRemote;
-      _pendingRemote = null;
-      applyRemote(p);
-    }
+    if (_pendingRemote) { const p = _pendingRemote; _pendingRemote = null; applyRemote(p); }
   };
 
   window.connectFirebase = function() {
     let connected = false;
-
-    _db.ref('.info/connected').on('value', (snap) => {
+    _db.ref('.info/connected').on('value', snap => {
       const dot = document.getElementById('fb-status');
       if (!dot) return;
       connected = snap.val() === true;
       dot.style.background = connected ? '#4caf7d' : '#ff5c5c';
     });
 
-    _rootRef.on('value', (snapshot) => {
+    // 실시간 구독
+    _rootRef.on('value', snapshot => {
       const dot = document.getElementById('fb-status');
       if (dot && !connected) dot.style.background = '#4caf7d';
       applyRemote(snapshot.val());
-    }, (error) => {
-      console.warn('lr2027_root 읽기 실패, 구버전 시도:', error.message);
-      _legacyRef.once('value').then(snap => {
-        if (snap.val()) applyRemote(snap.val());
-      }).catch(() => {});
+    }, error => {
+      console.error('Firebase 읽기 오류:', error.message);
       const dot = document.getElementById('fb-status');
       if (dot) dot.style.background = '#ff5c5c';
     });
 
+    // 저장: currentSeason + allSeasons + currentSeasonKey 통합
     window._fbSave = function(data) {
       let allSeasons = null, currentSeasonKey = null;
       try {
-        allSeasons = JSON.parse(localStorage.getItem('lr_seasons') || 'null');
+        allSeasons      = JSON.parse(localStorage.getItem('lr_seasons')       || 'null');
         currentSeasonKey = localStorage.getItem('lr_current_season') || null;
       } catch(e) {}
-      const payload = {
-        currentSeason: data,
-        allSeasons: allSeasons,
+      _rootRef.set({
+        currentSeason:    data,
+        allSeasons:       allSeasons,
         currentSeasonKey: currentSeasonKey,
-        savedAt: Date.now()
-      };
-      _rootRef.set(payload).catch(e => {
-        console.error('Firebase 저장 실패:', e);
-        _legacyRef.set(data).catch(() => {});
-      });
+        savedAt:          Date.now()
+      }).catch(e => console.error('Firebase 저장 실패:', e));
+    };
+
+    // PC→Firebase 강제 업로드 (설정 모달에서 사용)
+    window._fbForceUpload = function() {
+      if (!window.S) return;
+      window._fbSave(window.S);
+      alert('Firebase에 데이터를 업로드했습니다.\n다른 기기에서 새로고침하면 동기화됩니다.');
     };
   };
 
   }catch(e){
     console.warn('Firebase 초기화 실패 (로컬 파일 실행 시 정상):', e.message);
     window.connectFirebase = function(){};
-    window._fbAppReady = function(){};
+    window._fbAppReady    = function(){};
+    window._fbForceUpload = function(){ alert('Firebase가 연결되지 않았습니다.'); };
   }
 })();
 </script>
@@ -1194,8 +1194,10 @@ function switchSeason(yearKey){
     S.teamPO = null;
     buildBracket();
   }
+  // lr2027 캐시도 새 시즌 데이터로 업데이트
+  try{ localStorage.setItem('lr2027', JSON.stringify(S)); }catch(e){}
   renderSeasonSelect();
-  ensureEntries(); // 시즌 전환 후 entry 상태 보정
+  ensureEntries();
   repairBracket();
   if(S.init){showView('view-main');refreshAll();}
   else{showView('view-setup');renderSetupList();}
@@ -1614,10 +1616,26 @@ function renderAlltimeTab(){
 
 function load(){
   try{
-    const d=localStorage.getItem('lr2027');
+    // 1단계: 현재 시즌 키 먼저 복원 (어떤 시즌에 있었는지)
+    const savedKey = localStorage.getItem(CURRENT_KEY);
+    if(savedKey) CURRENT_SEASON = savedKey;
+
+    // 2단계: allSeasons에서 현재 시즌 데이터 로드
+    const allRaw = localStorage.getItem(SEASONS_KEY);
+    if(allRaw){
+      const all = JSON.parse(allRaw);
+      if(all[CURRENT_SEASON]){
+        const parsed = all[CURRENT_SEASON];
+        Object.keys(S).forEach(k=>{delete S[k];});
+        Object.keys(parsed).forEach(k=>{S[k]=parsed[k];});
+        return; // 성공적으로 allSeasons에서 로드
+      }
+    }
+
+    // 3단계: allSeasons에 없으면 lr2027(currentSeason 캐시) 폴백
+    const d = localStorage.getItem('lr2027');
     if(d){
-      const parsed=JSON.parse(d);
-      // S 참조를 유지하면서 내용만 교체 (window.S 참조 보존)
+      const parsed = JSON.parse(d);
       Object.keys(S).forEach(k=>{delete S[k];});
       Object.keys(parsed).forEach(k=>{S[k]=parsed[k];});
     }
@@ -1665,14 +1683,18 @@ function repairBracket(){
 function save(){
   S.updatedAt = Date.now();
   try{ localStorage.setItem('lr2027', JSON.stringify(S)); }catch(e){}
-  if(typeof window._fbSave === 'function') window._fbSave(S);
-  // 시즌 메타에도 동기화
+  // allSeasons 먼저 동기화 (Firebase 업로드 전)
+  // CURRENT_SEASON이 localStorage와 다를 수 있으므로 반드시 재동기화
   try{
+    const savedKey = localStorage.getItem(CURRENT_KEY);
+    if(savedKey && savedKey !== CURRENT_SEASON) CURRENT_SEASON = savedKey;
     const all = getAllSeasons();
     all[CURRENT_SEASON] = JSON.parse(JSON.stringify(S));
     localStorage.setItem(SEASONS_KEY, JSON.stringify(all));
     localStorage.setItem(CURRENT_KEY, CURRENT_SEASON);
   }catch(e){}
+  // Firebase 업로드 (allSeasons가 최신 상태인 시점에)
+  if(typeof window._fbSave === 'function') window._fbSave(S);
 }
 load();
 window.S = S; // load() 후 S가 새 객체로 교체됐을 수 있으므로 재동기화
@@ -2082,6 +2104,8 @@ window.renderSetupList = renderSetupList;
 window.ensureEntries = ensureEntries;
 window.renderSeasonSelect = renderSeasonSelect;
 window.showSyncBadge = showSyncBadge;
+// Firebase bridge가 CURRENT_SEASON 전역 변수를 동기화할 수 있도록 노출
+window._setCURRENT_SEASON = function(key) { CURRENT_SEASON = key; };
 // 세부기록 정렬 함수 전역 노출
 window.dtSort = dtSort;
 window.renderPeriodRank = renderPeriodRank;
@@ -4697,12 +4721,28 @@ function importData(input){
       if(typeof parsed!=='object'||!parsed.players){
         alert('올바른 Lucky Race 데이터 파일이 아닙니다.');input.value='';return;
       }
-      // S 참조를 유지하면서 in-place로 교체 (call stack 방지)
+      // allSeasons(_seasons 키) 복원 — currentSeason 로드 전에 먼저 처리
+      if(parsed._seasons){
+        try{
+          localStorage.setItem(SEASONS_KEY, JSON.stringify(parsed._seasons));
+        }catch(e){}
+      }
+      if(parsed._currentSeasonKey){
+        try{
+          localStorage.setItem(CURRENT_KEY, parsed._currentSeasonKey);
+          CURRENT_SEASON = parsed._currentSeasonKey;
+        }catch(e){}
+      }
+      // S 참조를 유지하면서 in-place로 교체 (_seasons/_currentSeasonKey 키는 제외)
       Object.keys(S).forEach(k=>{delete S[k];});
-      Object.keys(parsed).forEach(k=>{S[k]=parsed[k];});
+      Object.keys(parsed).forEach(k=>{
+        if(k==='_seasons'||k==='_currentSeasonKey') return;
+        S[k]=parsed[k];
+      });
       save();
       closeSettings();
       ensureEntries(); // 임포트된 데이터 entry 상태 보정
+      renderSeasonSelect();
       if(S.init){showView('view-main');refreshAll();}
       else{showView('view-setup');renderSetupList();}
       alert('데이터를 성공적으로 불러왔습니다.');
