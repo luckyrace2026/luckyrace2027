@@ -2884,157 +2884,365 @@ function detailSpecial(){
 
   // ── 연속 진출 (순위 기반) ─────────────────────────────
   function calcConsec(roundType){
-    var limit=ROUND_RANK_LIMIT[roundType];
-    var curStreak={};
-    var top=null,prev=null;
-    seasonKeys.forEach(function(sk){
-      var sd=allSeasons[sk]; if(!sd) return;
-      var SR=sd.seasonRanks||{};
-      var playedGames=(sd.bracket||[]).filter(function(bg){return bg.seeded;}).map(function(bg){return parseInt(bg.gameNum);}).filter(function(n){return n>0;}).sort(function(a,b){return a-b;});
-      if(!playedGames.length) return;
-      var players=new Set();
-      (sd.bracket||[]).forEach(function(bg){(bg.rounds||[]).forEach(function(r){(r.matches||[]).forEach(function(m){if(m.p1id)players.add(m.p1id);if(m.p2id)players.add(m.p2id);});});});
-      players.forEach(function(pid){if(curStreak[pid]==null)curStreak[pid]=0;});
+    var limit = ROUND_RANK_LIMIT[roundType];
+    // ── 핵심 원칙 ──────────────────────────────────────
+    // 진출 판정: seasonRanks[gns][pid] <= limit
+    // 연속 완성: 진출 실패(rank > limit) 또는 출전 안 함 → 그 직전까지 streak 완성 → 평가
+    // 진행 중인 streak가 top을 초과하면 즉시 갱신(이미 이전 최고를 넘었으므로)
+    // 기간 표기: startSk ~ endSk (다르면 "2027-2028시즌", 같으면 "2027시즌")
+    var curStreak = {}; // pid → {count, startSk}
+    var top = null, prev = null;
+
+    function evalStreak(pid, endSk) {
+      var st = curStreak[pid];
+      if (!st || st.count === 0) return;
+      var v = st.count;
+      var skLabel = (st.startSk !== endSk) ? (st.startSk + '-' + endSk) : endSk;
+      if (!top) {
+        top = {pid:pid, streak:v, sk:skLabel};
+      } else if (v > top.streak) {
+        prev = Object.assign({}, top);
+        top  = {pid:pid, streak:v, sk:skLabel};
+      }
+      // 타이는 무시
+    }
+
+    function resetStreak(pid) {
+      curStreak[pid] = {count:0, startSk:null};
+    }
+
+    function addStreak(pid, sk) {
+      if (!curStreak[pid] || curStreak[pid].count === 0) {
+        curStreak[pid] = {count:1, startSk:sk};
+      } else {
+        curStreak[pid].count++;
+      }
+      // 현재 진행 중 streak가 이미 top을 초과하면 즉시 반영
+      // (끊겼을 때 최종 평가도 하지만, 진행 중에도 이미 초과하면 갱신)
+      var v = curStreak[pid].count;
+      if (top && v > top.streak) {
+        prev = Object.assign({}, top);
+        var skLabel = (curStreak[pid].startSk !== sk) ? (curStreak[pid].startSk + '-' + sk) : sk;
+        top = {pid:pid, streak:v, sk:skLabel};
+      } else if (!top && v > 0) {
+        // 아직 top 없으면 아직 등록 안 함 (끊겼을 때 evalStreak에서 등록)
+      }
+    }
+
+    // 모든 선수 초기화
+    seasonKeys.forEach(function(sk) {
+      var sd = allSeasons[sk]; if (!sd) return;
+      var players = new Set();
+      (sd.bracket||[]).forEach(function(bg){
+        (bg.rounds||[]).forEach(function(r){
+          (r.matches||[]).forEach(function(m){
+            if(m.p1id) players.add(m.p1id);
+            if(m.p2id) players.add(m.p2id);
+          });
+        });
+      });
       players.forEach(function(pid){
-        playedGames.forEach(function(gn){
-          var gns=gn+'경기';
-          var inGame=false;
-          (sd.bracket||[]).forEach(function(bg){if(parseInt(bg.gameNum)===gn&&bg.rounds.some(function(r){return r.matches.some(function(m){return m.p1id===pid||m.p2id===pid;});}))inGame=true;});
-          if(!inGame){curStreak[pid]=0;return;}
-          var rank=(SR[gns]&&SR[gns][pid]!=null)?SR[gns][pid]:null;
-          if(rank!=null&&rank<=limit){
-            curStreak[pid]++;
-            var v=curStreak[pid];
-            if(!top){top={pid:pid,streak:v,sk:sk};}
-            else if(v>top.streak){prev=Object.assign({},top);top={pid:pid,streak:v,sk:sk};}
-          } else { curStreak[pid]=0; }
+        if(!curStreak[pid]) curStreak[pid]={count:0,startSk:null};
+      });
+    });
+
+    seasonKeys.forEach(function(sk){
+      var sd = allSeasons[sk]; if (!sd) return;
+      var SR = sd.seasonRanks || {};
+
+      // 이 시즌에 seeded된 경기 목록 (오름차순)
+      var playedGames = (sd.bracket||[])
+        .filter(function(bg){return bg.seeded;})
+        .map(function(bg){return parseInt(bg.gameNum);})
+        .filter(function(n){return n>0;})
+        .sort(function(a,b){return a-b;});
+
+      // 이 시즌 출전 선수
+      var seasonPlayers = new Set();
+      (sd.bracket||[]).forEach(function(bg){
+        (bg.rounds||[]).forEach(function(r){
+          (r.matches||[]).forEach(function(m){
+            if(m.p1id) seasonPlayers.add(m.p1id);
+            if(m.p2id) seasonPlayers.add(m.p2id);
+          });
+        });
+      });
+
+      // 이 시즌에 처음 등장하는 선수 초기화
+      seasonPlayers.forEach(function(pid){
+        if(!curStreak[pid]) curStreak[pid]={count:0,startSk:null};
+      });
+
+      playedGames.forEach(function(gn){
+        var gns = gn + '경기';
+        var rank_map = SR[gns] || {};
+
+        seasonPlayers.forEach(function(pid){
+          // 이 경기에 출전했는지 확인
+          var inGame = false;
+          (sd.bracket||[]).forEach(function(bg){
+            if(parseInt(bg.gameNum)===gn && bg.rounds.some(function(r){
+              return r.matches.some(function(m){return m.p1id===pid||m.p2id===pid;});
+            })) inGame=true;
+          });
+
+          if(!inGame){
+            // 출전 안 함 → 이 경기는 관계 없음 (streak 유지)
+            // (미출전은 끊김이 아님: 해당 선수는 이 경기에 배정되지 않았음)
+            return;
+          }
+
+          // 순위 조회
+          var rank = (rank_map[pid]!=null) ? rank_map[pid] : null;
+
+          if(rank===null){
+            // 아직 순위 미확정 (경기 진행 중) → 유지
+            return;
+          }
+
+          if(rank <= limit){
+            // 진출 성공 → streak 증가
+            addStreak(pid, sk);
+          } else {
+            // 진출 실패 → streak 끊김, 평가 후 리셋
+            evalStreak(pid, sk);
+            resetStreak(pid);
+          }
         });
       });
     });
-    return {top:top,prev:prev};
+
+    // 전체 스캔 완료 후 아직 끊기지 않은 streak 평가
+    var lastSk = seasonKeys[seasonKeys.length-1];
+    Object.keys(curStreak).forEach(function(pid){
+      evalStreak(pid, lastSk);
+    });
+
+    return {top:top, prev:prev};
   }
 
-  // ── 연속 고득점 ───────────────────────────────────────
+
   function calcConsecScore(threshold){
-    var curStreak={};
+    var curStreak={}; // pid → {count, startSk}
     var top=null,prev=null;
+    function skLabel(st,endSk){return st.startSk&&st.startSk!==endSk?st.startSk+'-'+endSk:endSk;}
+    function evalS(pid,sk){var st=curStreak[pid];if(!st||st.count===0)return;var v=st.count;if(!top){top={pid:pid,streak:v,sk:skLabel(st,sk)};}else if(v>top.streak){prev=Object.assign({},top);top={pid:pid,streak:v,sk:skLabel(st,sk)};}}
+    function addS(pid,sk){var st=curStreak[pid];if(!st||st.count===0){curStreak[pid]={count:1,startSk:sk};}else{curStreak[pid].count++;}}
+    function resetS(pid){curStreak[pid]={count:0,startSk:null};}
     seasonKeys.forEach(function(sk){
       var sd=allSeasons[sk]; if(!sd) return;
       var playedGames=(sd.bracket||[]).filter(function(bg){return bg.seeded;}).map(function(bg){return parseInt(bg.gameNum);}).filter(function(n){return n>0;}).sort(function(a,b){return a-b;});
       if(!playedGames.length) return;
       var players=new Set();
       (sd.bracket||[]).forEach(function(bg){(bg.rounds||[]).forEach(function(r){(r.matches||[]).forEach(function(m){if(m.p1id)players.add(m.p1id);if(m.p2id)players.add(m.p2id);});});});
-      players.forEach(function(pid){if(curStreak[pid]==null)curStreak[pid]=0;});
+      players.forEach(function(pid){if(!curStreak[pid])curStreak[pid]={count:0,startSk:null};});
       players.forEach(function(pid){
         playedGames.forEach(function(gn){
           var inGame=false;
           (sd.bracket||[]).forEach(function(bg){if(parseInt(bg.gameNum)===gn&&bg.rounds.some(function(r){return r.matches.some(function(m){return m.p1id===pid||m.p2id===pid;});}))inGame=true;});
-          if(!inGame){curStreak[pid]=0;return;}
+          if(!inGame) return;
           var scores=(sd.matches||[]).filter(function(m){return m.done&&parseInt(m.gameNum)===gn&&(m.p1id===pid||m.p2id===pid);}).map(function(m){return m.p1id===pid?m.p1score:m.p2score;});
           var best=scores.length?Math.max.apply(null,scores):0;
-          if(best>=threshold){
-            curStreak[pid]++;
-            var v=curStreak[pid];
-            if(!top){top={pid:pid,streak:v,sk:sk};}
-            else if(v>top.streak){prev=Object.assign({},top);top={pid:pid,streak:v,sk:sk};}
-          } else { curStreak[pid]=0; }
+          if(best>=threshold){addS(pid,sk);}
+          else{evalS(pid,sk);resetS(pid);}
         });
       });
     });
+    var lastSk=seasonKeys[seasonKeys.length-1];
+    Object.keys(curStreak).forEach(function(pid){evalS(pid,lastSk);});
     return {top:top,prev:prev};
   }
 
-  // ── 최다 연승 ─────────────────────────────────────────
   function calcConsecWin(){
-    var curStreak={};
+    var curStreak={}; // pid → {count, startSk}
     var top=null,prev=null;
+    function skLabel(st,endSk){return st.startSk&&st.startSk!==endSk?st.startSk+'-'+endSk:endSk;}
+    function evalW(pid,sk){var st=curStreak[pid];if(!st||st.count===0)return;var v=st.count;if(!top){top={pid:pid,streak:v,sk:skLabel(st,sk)};}else if(v>top.streak){prev=Object.assign({},top);top={pid:pid,streak:v,sk:skLabel(st,sk)};}}
     seasonKeys.forEach(function(sk){
       var sd=allSeasons[sk]; if(!sd) return;
       var stream=(sd.matches||[]).filter(function(m){return m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO';});
       stream.sort(function(a,b){var ga=parseInt(a.gameNum),gb=parseInt(b.gameNum);if(ga!==gb)return ga-gb;return RO.indexOf(a.roundType)-RO.indexOf(b.roundType);});
       var players=new Set();
       stream.forEach(function(m){if(m.p1id)players.add(m.p1id);if(m.p2id)players.add(m.p2id);});
-      players.forEach(function(pid){if(curStreak[pid]==null)curStreak[pid]=0;});
+      players.forEach(function(pid){if(!curStreak[pid])curStreak[pid]={count:0,startSk:null};});
       stream.forEach(function(m){
         [m.p1id,m.p2id].forEach(function(pid){
           if(!pid) return;
           if(m.winnerId===pid&&!m.isDraw){
-            curStreak[pid]++;
-            var v=curStreak[pid];
-            if(!top){top={pid:pid,streak:v,sk:sk};}
-            else if(v>top.streak){prev=Object.assign({},top);top={pid:pid,streak:v,sk:sk};}
-          } else if(m.p1id===pid||m.p2id===pid){ curStreak[pid]=0; }
+            var st=curStreak[pid];
+            if(!st||st.count===0){curStreak[pid]={count:1,startSk:sk};}
+            else{curStreak[pid].count++;}
+          } else if(m.p1id===pid||m.p2id===pid){
+            evalW(pid,sk);
+            curStreak[pid]={count:0,startSk:null};
+          }
         });
       });
     });
+    Object.keys(curStreak).forEach(function(pid){evalW(pid,seasonKeys[seasonKeys.length-1]);});
     return {top:top,prev:prev};
   }
 
-  // ── 연속 업셋 ─────────────────────────────────────────
   function calcConsecUpset(){
-    var curStreak={};
+    var curStreak={}; // pid → {count, startSk}
     var top=null,prev=null;
+    function skLabel(st,endSk){return st.startSk&&st.startSk!==endSk?st.startSk+'-'+endSk:endSk;}
+    function evalU(pid,sk){var st=curStreak[pid];if(!st||st.count===0)return;var v=st.count;if(!top){top={pid:pid,streak:v,sk:skLabel(st,sk)};}else if(v>top.streak){prev=Object.assign({},top);top={pid:pid,streak:v,sk:skLabel(st,sk)};}}
     seasonKeys.forEach(function(sk){
       var sd=allSeasons[sk]; if(!sd) return;
       var stream=(sd.matches||[]).filter(function(m){return m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO';});
       stream.sort(function(a,b){var ga=parseInt(a.gameNum),gb=parseInt(b.gameNum);if(ga!==gb)return ga-gb;return RO.indexOf(a.roundType)-RO.indexOf(b.roundType);});
       var players=new Set();
       stream.forEach(function(m){if(m.p1id)players.add(m.p1id);if(m.p2id)players.add(m.p2id);});
-      players.forEach(function(pid){if(curStreak[pid]==null)curStreak[pid]=0;});
+      players.forEach(function(pid){if(!curStreak[pid])curStreak[pid]={count:0,startSk:null};});
       stream.forEach(function(m){
         [m.p1id,m.p2id].forEach(function(pid){
           if(!pid) return;
           if(m.winnerId===pid&&m.upset){
-            curStreak[pid]++;
-            var v=curStreak[pid];
-            if(!top){top={pid:pid,streak:v,sk:sk};}
-            else if(v>top.streak){prev=Object.assign({},top);top={pid:pid,streak:v,sk:sk};}
-          } else if(m.p1id===pid||m.p2id===pid){ curStreak[pid]=0; }
+            var st=curStreak[pid];
+            if(!st||st.count===0){curStreak[pid]={count:1,startSk:sk};}
+            else{curStreak[pid].count++;}
+          } else if(m.p1id===pid||m.p2id===pid){
+            evalU(pid,sk);
+            curStreak[pid]={count:0,startSk:null};
+          }
         });
       });
     });
+    Object.keys(curStreak).forEach(function(pid){evalU(pid,seasonKeys[seasonKeys.length-1]);});
     return {top:top,prev:prev};
   }
 
+
   // ── 단일 시즌 최단 달성 ──────────────────────────────
   function calcFastest(type, target){
+    // 라운드 진출 확정 시 최소 보장 순위(승점)를 즉시 부여
+    // 16강 출전 → 최소 16위(SPTS[16]=13), 8강 출전 → 최소 8위(SPTS[8]=35)
+    // 준결승 출전 → 최소 4위(SPTS[4]=70), 결승 출전 → 최소 2위(SPTS[2]=90)
+    // 경기 최종 확정 시 실제 순위로 차액 보정
+    var ROUND_MIN_RANK={'16강전':16,'8강전':8,'준결승':4,'결승':2};
+    var ROUND_ABOVE={'16강전':'예선전','8강전':'16강전','준결승':'8강전','결승':'준결승'};
     var top=null,prev=null;
+    function fasterThan(a,b){
+      if(a.gameNum!==b.gameNum) return a.gameNum<b.gameNum;
+      if(RO.indexOf(a.roundType)!==RO.indexOf(b.roundType)) return RO.indexOf(a.roundType)<RO.indexOf(b.roundType);
+      if(a.matchNum!=null&&b.matchNum!=null) return a.matchNum<b.matchNum;
+      return false;
+    }
     seasonKeys.forEach(function(sk){
       var sd=allSeasons[sk]; if(!sd||!sd.matches) return;
       var SR=sd.seasonRanks||{};
       var seasonBest=null;
+
       (sd.players||[]).forEach(function(p){
         var pid=p.id;
-        var done=(sd.matches||[]).filter(function(m){return m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'&&(m.p1id===pid||m.p2id===pid);});
-        done.sort(function(a,b){var ga=parseInt(a.gameNum),gb=parseInt(b.gameNum);if(ga!==gb)return ga-gb;return RO.indexOf(a.roundType)-RO.indexOf(b.roundType);});
+        var done=(sd.matches||[]).filter(function(m){
+          return m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'&&(m.p1id===pid||m.p2id===pid);
+        });
+        done.sort(function(a,b){
+          var ga=parseInt(a.gameNum),gb=parseInt(b.gameNum);
+          if(ga!==gb) return ga-gb;
+          return RO.indexOf(a.roundType)-RO.indexOf(b.roundType);
+        });
+
         var cumPts=0,cumScore=0,cumWins=0;
-        var seenGames={};
+        // 경기별 승점 적용 상태
+        // guaranteedPts[gns]: 이 경기에서 이미 반영한 보장 승점
+        // finalizedGames[gns]: 최종 순위 확정 여부
+        var guaranteedPts={};   // gameNum문자열 → 현재 부여된 보장 승점(순위기반)
+        var finalizedGames={};  // gameNum문자열 → 최종 순위 확정됨
+
+        function getMatchNum(m,gn){
+          var mn=null;
+          (sd.bracket||[]).forEach(function(bg){
+            if(parseInt(bg.gameNum)===gn){
+              (bg.rounds||[]).forEach(function(r){
+                if(r.roundType===m.roundType){
+                  r.matches.forEach(function(bm,bi){
+                    if(bm.id===m.bracketMatchId) mn=bi+1;
+                  });
+                }
+              });
+            }
+          });
+          return mn;
+        }
+
+        function checkTarget(m,gn,cumPts,cumScore,cumWins,i){
+          var val=type==='pts'?cumPts:type==='score'?cumScore:cumWins;
+          if(val<target) return false;
+          var mn=getMatchNum(m,gn);
+          var rec={pid:pid,sk:sk,gameNum:gn,roundType:m.roundType,matchSeq:i+1,matchNum:mn};
+          if(!seasonBest||fasterThan(rec,seasonBest)) seasonBest=rec;
+          return true;
+        }
+
         for(var i=0;i<done.length;i++){
           var m=done[i];
           var isP1=m.p1id===pid;
+          var gn=parseInt(m.gameNum);
+          var gns=m.gameNum;
+
+          // ── 점수 누적 (score / wins) ──
           cumScore+=isP1?(m.p1score||0):(m.p2score||0);
           if(m.winnerId===pid) cumWins++;
-          if(!seenGames[m.gameNum]){
-            seenGames[m.gameNum]=true;
-            var rank=(SR[m.gameNum]&&SR[m.gameNum][pid]!=null)?SR[m.gameNum][pid]:(isP1?m.p1spts:m.p2spts);
-            if(rank!=null) cumPts+=SPTS[rank]||0;
-          }
-          if(m.winnerId===pid) cumPts+=0.5; else if(m.isDraw) cumPts+=0.25;
-          var val=type==='pts'?cumPts:type==='score'?cumScore:cumWins;
-          if(val>=target){
-            var gn=parseInt(m.gameNum);
-            var riIdx=RO.indexOf(m.roundType);
-            var rec={pid:pid,sk:sk,gameNum:gn,roundType:m.roundType,matchSeq:i+1};
-            if(!seasonBest||gn<seasonBest.gameNum||(gn===seasonBest.gameNum&&riIdx<RO.indexOf(seasonBest.roundType))){
-              seasonBest=rec;
+
+          // ── 승점(pts) 누적 ──
+          if(type==='pts'){
+            // 게임 승패 승점 (+0.5/+0.25)
+            if(m.winnerId===pid) cumPts+=0.5;
+            else if(m.isDraw) cumPts+=0.25;
+
+            // ① 라운드 진출 보장 승점: 이 라운드에 출전 → 이전 라운드까지 최소 보장
+            // ex) 8강전 출전 → 이 경기에서 최소 8위 보장
+            var advRound=m.roundType; // 현재 매치 라운드
+            var minRank=ROUND_MIN_RANK[advRound]||null;
+            if(minRank!==null && !finalizedGames[gns]){
+              var minPts=SPTS[minRank]||0;
+              var prevGuaranteed=guaranteedPts[gns]||0;
+              if(minPts>prevGuaranteed){
+                // 차액만 추가 (이미 낮은 보장 승점이 반영됐을 수 있음)
+                cumPts+=(minPts-prevGuaranteed);
+                guaranteedPts[gns]=minPts;
+              }
             }
-            break;
+
+            // ② 최종 순위 확정: 경기의 결승 매치가 끝났으면 실제 순위 반영
+            // 이 매치가 결승전이고 완료됐으면 → 해당 경기 순위 확정
+            if(!finalizedGames[gns]){
+              var finalRank=(SR[gns]&&SR[gns][pid]!=null)?SR[gns][pid]:
+                (i+1<done.length&&parseInt(done[i+1].gameNum)!==gn ? // 다음 매치가 다음 경기면 이 경기 완료
+                  (isP1?(m.p1spts||null):(m.p2spts||null)) : null);
+              // 이 gameNum의 마지막 매치인지 확인
+              var isLastMatchOfGame=(i+1>=done.length||parseInt(done[i+1].gameNum)!==gn);
+              if(isLastMatchOfGame){
+                // 실제 순위 적용
+                var realRank=null;
+                if(SR[gns]&&SR[gns][pid]!=null) realRank=SR[gns][pid];
+                else {
+                  var lastM=m; // 이 경기의 마지막 매치
+                  realRank=(lastM.p1id===pid?lastM.p1spts:lastM.p2spts);
+                }
+                if(realRank!=null){
+                  var realPts=SPTS[realRank]||0;
+                  var curGuaranteed=guaranteedPts[gns]||0;
+                  var diff=realPts-curGuaranteed;
+                  if(diff!==0) cumPts+=diff;
+                  guaranteedPts[gns]=realPts;
+                  finalizedGames[gns]=true;
+                }
+              }
+            }
           }
+
+          // ── 목표 달성 여부 체크 ──
+          if(checkTarget(m,gn,cumPts,cumScore,cumWins,i)) break;
         }
       });
+
       if(!seasonBest) return;
       if(!top){top=seasonBest;}
-      else if(seasonBest.gameNum<top.gameNum||(seasonBest.gameNum===top.gameNum&&RO.indexOf(seasonBest.roundType)<RO.indexOf(top.roundType))){
+      else if(fasterThan(seasonBest,top)){
         prev=Object.assign({},top);top=seasonBest;
       }
       // 타이 무시
@@ -3325,7 +3533,7 @@ function detailSpecial(){
       +'<div class="sp-title">'+title+'</div>'
       +'<div class="sp-holder">'+nmt(top.pid)+'</div>'
       +'<div class="sp-val">'+valStr+'</div>'
-      +'<div class="sp-season">'+seasonStr+'시즌</div>'
+      +'<div class="sp-season">'+seasonStr+(seasonStr?'시즌':'')+'</div>'
       +(prevStr?'<div class="sp-prev">(종전: '+prevStr+')</div>':'')
       +'</div>';
   }
@@ -3400,8 +3608,7 @@ function detailSpecial(){
    [fp400,'승점 400pt 달성'],[fp500,'승점 500pt 달성'],[fs10k,'누적 10,000점 달성'],
    [fs20k,'누적 20,000점 달성'],[fw10,'10승 달성'],[fw15,'15승 달성'],[fw20,'20승 달성']].forEach(function(arr){
     var r=arr[0],lbl=arr[1],t=r.top,p=r.prev;
-    var vs=t?t.gameNum+'경기 ('+t.roundType+')':'';
-    var ps=p?nmt(p.pid)+', '+p.sk+'시즌, '+p.gameNum+'경기 ('+p.roundType+')':null;
+    var mTag=function(r){return r.gameNum+'경기 ('+(r.roundType)+(r.matchNum?'-'+r.matchNum:'')+')';};    var vs=t?mTag(t):'';    var ps=p?nmt(p.pid)+', '+p.sk+'시즌, '+mTag(p):null;
     html+=card(lbl,t,vs,t?t.sk:'',ps);
   });
   html+='</div>';
