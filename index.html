@@ -1382,10 +1382,8 @@ function calcAlltimeStats(){
       // 해당 시즌 전체 평균
       const allDone3=(sd.matches||[]).filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO');
       const allPlayers3=sd.players||[];
-      const gAvg3=allPlayers3.length?allPlayers3.reduce((a,pp)=>{
-        const ppd=allDone3.filter(m=>m.p1id===pp.id||m.p2id===pp.id);
-        return a+(ppd.length?ppd.reduce((s,m)=>s+(m.p1id===pp.id?m.p1score:m.p2score),0)/ppd.length:0);
-      },0)/allPlayers3.length:myAvg;
+      const _ppAvgs3=allPlayers3.map(pp=>{const ppd=allDone3.filter(m=>m.p1id===pp.id||m.p2id===pp.id);return ppd.length?ppd.reduce((s,m)=>s+(m.p1id===pp.id?m.p1score:m.p2score),0)/ppd.length:0;}).filter(v=>v>0);
+      const gAvg3=_ppAvgs3.length?_ppAvgs3.reduce((a,v)=>a+v,0)/_ppAvgs3.length:myAvg;
       contribSum+=(100+(myAvg-gAvg3));
       contribCount++;
     });
@@ -1465,10 +1463,8 @@ function calcAlltimeTeamStats(){
         const pScore=pd.reduce((a,m)=>a+(m.p1id===pid?m.p1score:m.p2score),0)/pd.length;
         const allDone=sd.matches.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO');
         const allPlayers=sd.players||[];
-        const gAvg=allPlayers.length?allPlayers.reduce((a,pp)=>{
-          const ppd=allDone.filter(m=>m.p1id===pp.id||m.p2id===pp.id);
-          return a+(ppd.length?ppd.reduce((s,m)=>s+(m.p1id===pp.id?m.p1score:m.p2score),0)/ppd.length:0);
-        },0)/allPlayers.length:1;
+        const _ppAvgs=allPlayers.map(pp=>{const ppd=allDone.filter(m=>m.p1id===pp.id||m.p2id===pp.id);return ppd.length?ppd.reduce((s,m)=>s+(m.p1id===pp.id?m.p1score:m.p2score),0)/ppd.length:0;}).filter(v=>v>0);
+        const gAvg=_ppAvgs.length?_ppAvgs.reduce((a,v)=>a+v,0)/_ppAvgs.length:1;
         let sPts2=0;
         Object.keys(sr).forEach(gn=>{if(sr[gn]&&sr[gn][pid]!=null)sPts2+=SPTS_BY_RANK[sr[gn][pid]]||0;});
         if(sPts2>0&&pScore>0&&gAvg>0) memberVrList.push(Math.log10(sPts2)+(pScore/gAvg));
@@ -1839,7 +1835,7 @@ function pStatsUpTo(id, beforeGameNum, beforeRoundType){
 function calcValueRatingsUpTo(beforeGameNum, beforeRoundType){
   if(!S.players.length) return {};
   const rawStats = S.players.map(p => pStatsUpTo(p.id, beforeGameNum, beforeRoundType));
-  const hasData = rawStats.filter(s => s.g > 0);
+  const hasData = rawStats.filter(s => s.g > 0 && s.avgScore > 0);
   const globalAvg = hasData.length > 0
     ? hasData.reduce((a,s) => a+s.avgScore, 0) / hasData.length
     : 1;
@@ -1869,7 +1865,7 @@ function calcAllValueRatings(){
   // 1차: 기본 스탯 수집
   const rawStats=S.players.map(p=>pStats(p.id));
   // 전체 평균점수의 평균 계산
-  const hasData=rawStats.filter(s=>s.g>0);
+  const hasData=rawStats.filter(s=>s.g>0&&s.avgScore>0);
   const globalAvgScore=hasData.length>0
     ? hasData.reduce((a,s)=>a+s.avgScore,0)/hasData.length
     : 1;
@@ -2756,7 +2752,7 @@ function detailScoreContrib(){
     const done=S.matches.filter(m=>m.done&&(m.p1id===p.id||m.p2id===p.id));
     const g=done.length;const cum=done.reduce((a,m)=>a+(m.p1id===p.id?m.p1score:m.p2score),0);
     return{id:p.id,avg:g?cum/g:0,g};
-  }).filter(x=>x.g>0);
+  }).filter(x=>x.g>0&&x.avg>0);
   const gAvg=active.length?active.reduce((a,x)=>a+x.avg,0)/active.length:1;
   const sorted=detailSortedPlayers();
   const rows=sorted.map(({p,s},i)=>{
@@ -2790,7 +2786,7 @@ function detailRealPts(){
     const done=S.matches.filter(m=>m.done&&(m.p1id===p.id||m.p2id===p.id));
     const g=done.length;const cum=done.reduce((a,m)=>a+(m.p1id===p.id?m.p1score:m.p2score),0);
     return{id:p.id,avg:g?cum/g:0,g};
-  }).filter(x=>x.g>0);
+  }).filter(x=>x.g>0&&x.avg>0);
   const gAvg=active.length?active.reduce((a,x)=>a+x.avg,0)/active.length:1;
   const cMap={};active.forEach(x=>{cMap[x.id]=100+(x.avg-gAvg);});
 
@@ -2912,20 +2908,12 @@ function detailSpecial(){
     }
 
     function addStreak(pid, sk) {
+      // 연속 카운트만 증가. 평가는 반드시 끊겼을 때(evalStreak)에만 수행.
+      // → 하나의 연속 흐름 안에서 중간 값이 종전 기록이 되는 것을 방지.
       if (!curStreak[pid] || curStreak[pid].count === 0) {
         curStreak[pid] = {count:1, startSk:sk};
       } else {
         curStreak[pid].count++;
-      }
-      // 현재 진행 중 streak가 이미 top을 초과하면 즉시 반영
-      // (끊겼을 때 최종 평가도 하지만, 진행 중에도 이미 초과하면 갱신)
-      var v = curStreak[pid].count;
-      if (top && v > top.streak) {
-        prev = Object.assign({}, top);
-        var skLabel = (curStreak[pid].startSk !== sk) ? (curStreak[pid].startSk + '-' + sk) : sk;
-        top = {pid:pid, streak:v, sk:skLabel};
-      } else if (!top && v > 0) {
-        // 아직 top 없으면 아직 등록 안 함 (끊겼을 때 evalStreak에서 등록)
       }
     }
 
@@ -3385,7 +3373,7 @@ function detailSpecial(){
       var cum=done.reduce(function(a,m){return a+(m.p1id===pid?m.p1score:m.p2score);},0);
       rawStats[pid]={g:done.length,avg:done.length?cum/done.length:0};
     });
-    var hasData=Object.keys(rawStats).filter(function(pid){return rawStats[pid].g>0;});
+    var hasData=Object.keys(rawStats).filter(function(pid){return rawStats[pid].g>0&&rawStats[pid].avg>0;});
     var globalAvg=hasData.length?hasData.reduce(function(a,pid){return a+rawStats[pid].avg;},0)/hasData.length:1;
     var SR=sd.seasonRanks||{}, pts={};
     (sd.players||[]).forEach(function(p){pts[p.id]=0;});
@@ -3407,7 +3395,7 @@ function detailSpecial(){
       if(m.p1id){cum[m.p1id]=(cum[m.p1id]||0)+(m.p1score||0);cnt[m.p1id]=(cnt[m.p1id]||0)+1;}
       if(m.p2id){cum[m.p2id]=(cum[m.p2id]||0)+(m.p2score||0);cnt[m.p2id]=(cnt[m.p2id]||0)+1;}
     });
-    var avgs=Object.keys(cum).filter(function(pid){return cnt[pid]>0;}).map(function(pid){return {pid:pid,avg:cum[pid]/cnt[pid]};});
+    var avgs=Object.keys(cum).filter(function(pid){return cnt[pid]>0&&cum[pid]/cnt[pid]>0;}).map(function(pid){return {pid:pid,avg:cum[pid]/cnt[pid]};});
     var globalAvg=avgs.length?avgs.reduce(function(a,x){return a+x.avg;},0)/avgs.length:1;
     return avgs.map(function(x){return {pid:x.pid,value:parseFloat((100+(x.avg-globalAvg)).toFixed(2))};});
   }
