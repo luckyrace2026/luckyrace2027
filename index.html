@@ -2372,13 +2372,14 @@ function detailH2H(){
     <span style="font-size:12px;color:var(--text3);margin-left:8px">${me.team||'팀 없음'} · ${fmt(meStat?.s.pts||0)}pt</span>
   </div>`;
 
-  // 내비게이션 탭 (시즌/통산)
-  const viewId='h2h-view-'+_h2hSelected.replace(/[^a-z0-9]/gi,'_');
+  // 내비게이션 탭 (시즌/통산) — _h2hTab 전역 변수로 선택 상태 유지
+  if(typeof window._h2hTab === 'undefined') window._h2hTab = 'season';
+  const isAlltime = window._h2hTab === 'alltime';
   const tabBar=`<div style="display:flex;gap:6px;margin:8px 14px 10px">
-    <button id="h2h-tab-season" onclick="document.getElementById('h2h-season').style.display='block';document.getElementById('h2h-alltime').style.display='none';this.style.color='var(--accent)';this.style.borderColor='var(--accent)';document.getElementById('h2h-tab-alltime').style.color='var(--text3)';document.getElementById('h2h-tab-alltime').style.borderColor='var(--line2)'"
-      style="padding:5px 14px;background:transparent;border:1px solid var(--accent);border-radius:var(--r);color:var(--accent);font-size:12px;cursor:pointer">시즌 전적</button>
-    <button id="h2h-tab-alltime" onclick="document.getElementById('h2h-alltime').style.display='block';document.getElementById('h2h-season').style.display='none';this.style.color='var(--accent)';this.style.borderColor='var(--accent)';document.getElementById('h2h-tab-season').style.color='var(--text3)';document.getElementById('h2h-tab-season').style.borderColor='var(--line2)'"
-      style="padding:5px 14px;background:transparent;border:1px solid var(--line2);border-radius:var(--r);color:var(--text3);font-size:12px;cursor:pointer">통산 전적</button>
+    <button id="h2h-tab-season" onclick="window._h2hTab='season';document.getElementById('h2h-season').style.display='block';document.getElementById('h2h-alltime').style.display='none';this.style.color='var(--accent)';this.style.borderColor='var(--accent)';document.getElementById('h2h-tab-alltime').style.color='var(--text3)';document.getElementById('h2h-tab-alltime').style.borderColor='var(--line2)'"
+      style="padding:5px 14px;background:transparent;border:1px solid ${isAlltime?'var(--line2)':'var(--accent)'};border-radius:var(--r);color:${isAlltime?'var(--text3)':'var(--accent)'};font-size:12px;cursor:pointer">시즌 전적</button>
+    <button id="h2h-tab-alltime" onclick="window._h2hTab='alltime';document.getElementById('h2h-alltime').style.display='block';document.getElementById('h2h-season').style.display='none';this.style.color='var(--accent)';this.style.borderColor='var(--accent)';document.getElementById('h2h-tab-season').style.color='var(--text3)';document.getElementById('h2h-tab-season').style.borderColor='var(--line2)'"
+      style="padding:5px 14px;background:transparent;border:1px solid ${isAlltime?'var(--accent)':'var(--line2)'};border-radius:var(--r);color:${isAlltime?'var(--accent)':'var(--text3)'};font-size:12px;cursor:pointer">통산 전적</button>
   </div>`;
 
   function buildTable(matchList, label){
@@ -2466,8 +2467,8 @@ function detailH2H(){
   const alltimeTable=buildTable(allMatches, '통산');
 
   const body=`${header}${tabBar}
-    <div id="h2h-season">${seasonTable}</div>
-    <div id="h2h-alltime" style="display:none">${alltimeTable}</div>`;
+    <div id="h2h-season" style="display:${isAlltime?'none':'block'}">${seasonTable}</div>
+    <div id="h2h-alltime" style="display:${isAlltime?'block':'none'}">${alltimeTable}</div>`;
 
   return dtCard(`상대 전적 — ${me.name}`, sel+body)
     +'<p style="font-size:11px;color:var(--text3);padding:4px 10px">* 0승 0패 상대는 표시하지 않음 / 헤더 ↕ 클릭으로 정렬</p>';
@@ -3442,7 +3443,8 @@ function detailSpecial(){
       var SR=sd.seasonRanks||{};
       var stream=(sd.matches||[]).filter(function(m){return m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO';});
       stream.sort(function(a,b){var ga=parseInt(a.gameNum),gb=parseInt(b.gameNum);if(ga!==gb)return ga-gb;return RO.indexOf(a.roundType)-RO.indexOf(b.roundType);});
-      var seenGames={};
+      // seenGames는 반드시 선수별로 독립 관리 (공유 시 다른 선수가 같은 경기를 건너뜀)
+      var seenGamesByPid={};
       stream.forEach(function(m){
         [[m.p1id,0],[m.p2id,1]].forEach(function(arr){
           var pid=arr[0], pi=arr[1];
@@ -3453,9 +3455,9 @@ function detailSpecial(){
           } else if(type==='wins'){
             if(m.winnerId===pid&&!m.isDraw) cumMap[pid]++;
           } else if(type==='pts'){
-            if(!seenGames[pid]) seenGames[pid]={};
-            if(!seenGames[pid][m.gameNum]){
-              seenGames[pid][m.gameNum]=true;
+            if(!seenGamesByPid[pid]) seenGamesByPid[pid]={};
+            if(!seenGamesByPid[pid][m.gameNum]){
+              seenGamesByPid[pid][m.gameNum]=true;
               var rank=(SR[m.gameNum]&&SR[m.gameNum][pid]!=null)?SR[m.gameNum][pid]:(pi===0?m.p1spts:m.p2spts);
               if(rank!=null) cumMap[pid]+=SPTS[rank]||0;
             }
@@ -3547,7 +3549,7 @@ function detailSpecial(){
     }).join('');
     return '<div class="sp-ah-card">'
       +'<div class="sp-title">'+titleLabel+'</div>'
-      +'<select class="sp-ah-sel" onchange="document.querySelectorAll(\'[id^=sp_\'+uid+\'_]\').forEach(function(el){el.style.display=\'none\';});document.getElementById(\'sp_\'+uid+\'_\'+this.value).style.display=\'block\';">'+opts+'</select>'
+      +'<select class="sp-ah-sel" onchange="document.querySelectorAll(\"[id^=sp_'+uid+'_]\").forEach(function(e){e.style.display=\"none\";});document.getElementById(\"sp_'+uid+'_\"+this.value).style.display=\"block\";">'+opts+'</select>'
       +'<div>'+sects+'</div>'
       +'</div>';
   }
