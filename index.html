@@ -3605,15 +3605,14 @@ function detailSpecial(){
         }
       });
       hitsByT[t].sort(function(a,b){return cmpKey(a.skey,b.skey);});
+
     });
 
-    // ── 구간별 독립 명단 (t이상 & 다음임계값 미달) ─────────
+    // 각 임계값별 독립 달성자 목록
+    // (중복 허용: 500pt 명단과 1000pt 명단은 독립적으로 구성)
     var achieved={};
-    thresholds.forEach(function(t,ti){
-      var tNext=thresholds[ti+1];
-      var nextPids={};
-      if(tNext) (hitsByT[tNext]||[]).forEach(function(h){nextPids[h.pid]=true;});
-      achieved[t]=(hitsByT[t]||[]).filter(function(h){return !nextPids[h.pid];}).map(function(h,i){
+    thresholds.forEach(function(t){
+      achieved[t]=(hitsByT[t]||[]).map(function(h,i){
         return {pid:h.pid,sk:h.entry.sk,gameNum:h.entry.gn,roundType:h.entry.roundType,matchNum:h.entry.mn,order:i+1};
       });
     });
@@ -3621,8 +3620,10 @@ function detailSpecial(){
   }
 
   function dynamicThresholds(type, base, step, achieved){
-    var result=[base,base+step];
-    var cur=base+step*2;
+    // base는 무조건 포함 (드롭다운에 최소 1개 항목)
+    // 이후 임계값은 이전 단계 달성자가 있을 때만 포함
+    var result=[base];
+    var cur=base+step;
     while(cur<=base+step*39){
       if((achieved[cur-step]||[]).length>0) result.push(cur);
       else break;
@@ -3632,9 +3633,13 @@ function detailSpecial(){
   }
 
   function ahCardSimple(uid, titleLabel, achieved, thresholds, fmtT){
-    var validT=thresholds.filter(function(t){return (achieved[t]||[]).length>0;});
-    if(!validT.length) return '<div class="sp-ah-card"><div class="sp-title">'+titleLabel+'</div><div class="sp-none">아직 달성자 없음</div></div>';
-    var defT=validT[0];
+    // thresholds[0]은 달성자 없어도 버튼 생성 (최소 1개 보장)
+    // 이후는 달성자 있을 때만 버튼 생성
+    var btnT=thresholds.filter(function(t,i){
+      return i===0||(achieved[t]||[]).length>0;
+    });
+    var defT=btnT[0];
+
     function timeTag(r){
       if(!r.sk) return '';
       var s=r.sk+'시즌';
@@ -3642,9 +3647,10 @@ function detailSpecial(){
       if(r.roundType) s+=' ('+r.roundType+(r.matchNum?'-'+r.matchNum:'')+')';
       return s;
     }
+
     function listHtml(t){
       var list=achieved[t]||[];
-      if(!list.length) return '<div class="sp-none">달성자 없음</div>';
+      if(!list.length) return '<div class="sp-none">아직 달성자 없음</div>';
       return list.map(function(r){
         return '<div class="sp-ah-row">'
           +'<span class="sp-ah-num">'+r.order+'</span>'
@@ -3653,16 +3659,30 @@ function detailSpecial(){
           +'</div>';
       }).join('');
     }
-    var sects=validT.map(function(t){
-      return '<div id="sp_'+uid+'_'+t+'" style="display:'+(t===defT?'block':'none')+'">'+listHtml(t)+'</div>';
+
+    // 섹션 (id: sp_uid_t)
+    var sects=btnT.map(function(t){
+      return '<div id="sp_'+uid+'_'+t+'" class="sp-ah-sect" style="display:'+(t===defT?'block':'none')+'">'+listHtml(t)+'</div>';
     }).join('');
-    var opts=validT.map(function(t){
-      return '<option value="'+t+'"'+(t===defT?' selected':'')+'>'+fmtT(t)+'</option>';
+
+    // 버튼 — onclick 내부는 모두 단따옴표 사용 (HTML attribute 충돌 방지)
+    var btns=btnT.map(function(t){
+      var active=(t===defT);
+      // uid와 t를 직접 치환하여 클로저 문제 방지
+      // onclick 내부: 단따옴표만 사용
+      var sectId='sp_'+uid+'_'+t;
+      var oc=''
+        +"document.querySelectorAll('[id^=sp_"+uid+"_]').forEach(function(e){e.style.display='none';});"
+        +"document.getElementById('"+sectId+"').style.display='block';"
+        +"document.querySelectorAll('[data-ah=\\'"+uid+"\\']').forEach(function(b){b.classList.remove('sp-ah-btn-active');});"
+        +"this.classList.add('sp-ah-btn-active');";
+      return '<button class="sp-ah-btn'+(active?' sp-ah-btn-active':'')+'" data-ah="'+uid+'" onclick="'+oc+'">'
+        +fmtT(t)+'</button>';
     }).join('');
-    var oc='document.querySelectorAll("[id^=sp_'+uid+'_]").forEach(function(e){e.style.display="none";});document.getElementById("sp_'+uid+'_"+this.value).style.display="block";';
+
     return '<div class="sp-ah-card">'
       +'<div class="sp-title">'+titleLabel+'</div>'
-      +'<select class="sp-ah-sel" onchange="'+oc+'">'+opts+'</select>'
+      +'<div class="sp-ah-btns">'+btns+'</div>'
       +'<div>'+sects+'</div>'
       +'</div>';
   }
@@ -3688,7 +3708,11 @@ function detailSpecial(){
       '.sp-ah-num{font-family:"DM Mono",monospace;font-size:11px;color:var(--text3);width:22px;flex-shrink:0}',
       '.sp-ah-name{flex:1;font-weight:500}',
       '.sp-ah-sk{font-size:10px;color:var(--text3);margin-left:auto}',
-      '@media(max-width:480px){.sp-grid{grid-template-columns:repeat(2,1fr)}}'
+      '@media(max-width:480px){.sp-grid{grid-template-columns:repeat(2,1fr)}}',
+      '.sp-ah-btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}',
+      '.sp-ah-btn{padding:5px 12px;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit}',
+      '.sp-ah-btn:hover{border-color:var(--accent);color:var(--accent)}',
+      '.sp-ah-btn-active{background:var(--accent)!important;border-color:var(--accent)!important;color:#0e0f11!important;font-weight:600}'
     ].join('');
     document.head.appendChild(st);
   }
@@ -3725,7 +3749,6 @@ function detailSpecial(){
   var _ptsList=[]; for(var _i=0;_i<BIG;_i++) _ptsList.push(500+500*_i);
   var ptsAchieved=calcCareerThreshold('pts',_ptsList);
   var ptsTh=dynamicThresholds('pts',500,500,ptsAchieved);
-
   var _scList=[]; for(var _i=0;_i<BIG;_i++) _scList.push(25000+25000*_i);
   var scAchieved=calcCareerThreshold('score',_scList);
   var scTh=dynamicThresholds('score',25000,25000,scAchieved);
@@ -3741,6 +3764,22 @@ function detailSpecial(){
   var _vrList=[]; for(var _i=0;_i<BIG;_i++) _vrList.push(10+10*_i);
   var vrAchieved=calcCareerThreshold('vr',_vrList);
   var vrTh=dynamicThresholds('vr',10,10,vrAchieved);
+  // DEBUG vr
+  console.log('[VR] vrTh=',vrTh,'vrAchieved[10] 수='+(vrAchieved[10]||[]).length);
+  if((vrAchieved[10]||[]).length===0){
+    // vr 직접 계산
+    var _vrCheck={};
+    seasonKeys.forEach(function(sk){
+      if(!isSeasonDone(sk)) return;
+      var sd=allSeasons[sk]; if(!sd) return;
+      getSeasonVR(sd).forEach(function(x){_vrCheck[x.pid]=(_vrCheck[x.pid]||0)+x.value;});
+    });
+    var over10=Object.keys(_vrCheck).filter(function(p){return _vrCheck[p]>=10;});
+    console.log('[VR] 직접계산 10이상:'+over10.length+'명');
+    var allVals=Object.values(_vrCheck).sort(function(a,b){return b-a;}).slice(0,5);
+    console.log('[VR] TOP5 vr값:', allVals);
+    console.log('[VR] isSeasonDone 2027:'+isSeasonDone('2027')+', 2028:'+isSeasonDone('2028'));
+  }
 
   var html='';
 
