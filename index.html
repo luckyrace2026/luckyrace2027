@@ -1104,7 +1104,7 @@ const AB=['rgba(91,156,246,.15)','rgba(76,175,125,.15)','rgba(212,240,76,.12)','
 const AT=['#5b9cf6','#4caf7d','#a8c23a','#ffb340','#a863ff','#ff5c5c','#2dd4bf'];
 // Team color map
 const TEAM_BG={'ITA':'rgba(134,239,172,.25)','삼성':'rgba(147,210,255,.25)','카카오':'rgba(253,224,71,.25)','SSG':'rgba(220,38,38,.85)','한화':'rgba(251,146,60,.25)','롯데':'rgba(30,27,75,.9)','KT':'rgba(15,15,15,.95)','현대':'rgba(100,116,139,.3)','KIA':'rgba(185,28,28,.9)','LG':'rgba(126,34,206,.85)'};
-const TEAM_TX={'ITA':'#86efac','삼성':'#93c5fd','카카오':'#fde047','SSG':'#fde047','한화':'#fb923c','롯데':'#ffffff','KT':'#ffffff','현대':'#cbd5e1','KIA':'#ffffff','LG':'#f9a8d4'};
+const TEAM_TX={'ITA':'#4ade80','삼성':'#3b82f6','카카오':'#facc15','SSG':'#ef4444','한화':'#f97316','롯데':'#6366f1','KT':'#f1f5f9','현대':'#94a3b8','KIA':'#f87171','LG':'#a855f7'};
 function teamColor(teamName){const k=Object.keys(TEAM_BG).find(k=>teamName&&teamName.includes(k));return k?{bg:TEAM_BG[k],tx:TEAM_TX[k]}:null;}
 function avcTeam(p,i){const tc=teamColor(p.team||'');return tc||{bg:AB[i%AB.length],tx:AT[i%AT.length]};}
 
@@ -6750,7 +6750,38 @@ function renderTeamPO(){
     const hasPlayers=playersA.length===3&&playersB.length===3;
 
     // ── 세트별 렌더 ──────────────────────────────────────────
+    // 표시할 세트 수: 완료된 매치는 실제 세트 수, 진행 중은 최대 3
     const maxSets=m.winner?m.sets.length:3;
+    // 펼치기 키는 매치 단위 (세트 단위가 아님)
+    const matchExpandKey=phase+'_match';
+    const isMatchExpanded=!!window._tpoExpanded[matchExpandKey];
+
+    // 펼치기 전: 세트 헤더 요약만 표시
+    if(m.winner&&!isMatchExpanded){
+      // 접힌 상태: 세트별 스코어만 한 줄로
+      let summaryHtml='<div style="border:1px solid var(--line);border-radius:var(--r);overflow:hidden">';
+      summaryHtml+='<div style="padding:8px 12px;background:var(--bg3);display:flex;justify-content:space-between;align-items:center">';
+      summaryHtml+='<div style="display:flex;align-items:center;gap:12px">';
+      for(let si2=0;si2<m.sets.length;si2++){
+        const set2=m.sets[si2]||null;
+        const swA2=set2?set2.games.filter(g=>g&&g.winnerId===g.p1id).length:0;
+        const swB2=set2?set2.games.filter(g=>g&&g.winnerId===g.p2id).length:0;
+        const sw2=set2&&set2.winner;
+        const wc2=sw2?(set2.winner==='A'?'var(--accent)':'var(--blue)'):'var(--text3)';
+        summaryHtml+=`<span style="font-size:12px;color:var(--text3)">세트${si2+1}</span>`
+          +`<span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${sw2?wc2:'var(--text3)'}">${swA2}<span style="color:var(--text3);font-weight:400"> : </span>${swB2}</span>`;
+      }
+      summaryHtml+='</div>';
+      summaryHtml+=`<button class="btn btn-sm" style="padding:3px 10px;font-size:11px" onclick="window._tpoExpanded['${matchExpandKey}']=true;renderTeamPO()">펼치기</button>`;
+      summaryHtml+='</div></div>';
+      html+=summaryHtml;
+    } else {
+      // 펼친 상태 또는 진행 중: 세트별 상세 표시
+      const expandBtnHtml2=m.winner
+        ? `<button class="btn btn-sm" style="padding:3px 10px;font-size:11px" onclick="window._tpoExpanded['${matchExpandKey}']=false;renderTeamPO()">접기</button>`
+        : '';
+      html+=`<div style="display:flex;justify-content:flex-end;margin-bottom:4px">${expandBtnHtml2}</div>`;
+
     for(let si=0;si<maxSets;si++){
       const set=m.sets[si]||null;
       const prevSetDone=si===0||(m.sets[si-1]&&m.sets[si-1].winner);
@@ -6761,27 +6792,23 @@ function renderTeamPO(){
       const totA=set?set.games.reduce((s,g)=>s+(g&&g.p1score||0),0):0;
       const totB=set?set.games.reduce((s,g)=>s+(g&&g.p2score||0),0):0;
 
-      // 라운드 종료 후 세트 완료된 경우 → 접기/펼치기
-      const expandKey=phase+'_s'+si;
-      const isExpanded=!!window._tpoExpanded[expandKey];
-      // 라운드 종료 && 세트 완료 → 기본 접힘 / 진행 중 → 항상 펼침
-      const shouldCollapse=m.winner&&setDone;
+      const shouldCollapse=false; // 상세 뷰에서는 모든 세트 펼침
 
       html+=`<div style="border:1px solid var(--line);border-radius:var(--r);margin-bottom:8px;overflow:hidden">`;
 
       // ── 세트 헤더 (항상 표시) ──
       const winnerName=setDone?(set.winner==='A'?m.teamA:m.teamB):'';
-      const winColor=setDone?(set.winner==='A'?'var(--accent)':'var(--blue)'):'var(--text3)';
+      const winColor=setDone
+        ?(set.winner==='A'?(tcA.tx||'var(--accent)'):(tcB.tx||'var(--blue)'))
+        :'var(--text3)';
       const setStatusHtml=setDone
         ? '<span style="font-size:12px;font-family:\'DM Mono\',monospace;color:'+winColor+'"><b>'+swA+'</b><span style="color:var(--text3)"> : </span><b>'+swB+'</b></span>'
           +'<span style="font-size:10px;color:'+winColor+';margin-left:6px">'+winnerName+' 승</span>'
         : setActive
           ? '<span style="font-size:11px;color:var(--accent)">진행 중</span>'
           : '<span style="font-size:11px;color:var(--text3)">대기</span>';
-      const expandBtnHtml=shouldCollapse
-        ? '<button class="btn btn-sm" style="padding:3px 10px;font-size:11px" onclick="window._tpoExpanded[\''+expandKey+'\']=!window._tpoExpanded[\''+expandKey+'\'];renderTeamPO()">'+(isExpanded?'접기':'펼치기')+'</button>'
-        : '';
-      const hdrBorder=shouldCollapse?'':'border-bottom:1px solid var(--line);';
+      const expandBtnHtml='';
+      const hdrBorder='border-bottom:1px solid var(--line);';
       html+='<div style="padding:8px 12px;background:var(--bg3);display:flex;justify-content:space-between;align-items:center;'+hdrBorder+'">'
         +'<div style="display:flex;align-items:center;gap:8px">'
         +'<span style="font-size:12px;font-weight:600;color:var(--text)">세트 '+(si+1)+'</span>'
@@ -6790,8 +6817,8 @@ function renderTeamPO(){
         +expandBtnHtml
         +'</div>';
 
-      // ── 세트 상세 내용 (접힌 경우 숨김) ──
-      if(!shouldCollapse||isExpanded){
+      // ── 세트 상세 내용 ──
+      if(true){
         if(setActive||setDone){
           // 스코어보드
           if(setDone||(set&&set.games.some(g=>g&&g.winnerId!==null))){
@@ -6809,9 +6836,12 @@ function renderTeamPO(){
                 : `<span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--text3)">-</span>`);
             }
             const diffVal=Math.abs(totA-totB);
-            const diffColor=totA>totB?'color:var(--green)':totA<totB?'color:var(--red)':'color:var(--text3)';
-            const totColorA=totA>totB?'var(--green)':totA<totB?'var(--red)':'var(--text)';
-            const totColorB=totB>totA?'var(--green)':totB<totA?'var(--red)':'var(--text)';
+            // 점수 합: 팀 퍼스널컬러 (tx = 텍스트용 선명한 색)
+            const totColorA=tcA.tx||'var(--text)';
+            const totColorB=tcB.tx||'var(--text)';
+            // 점수차: 우세한 팀의 퍼스널컬러
+            const diffTeamColor=totA>totB?(tcA.tx||'var(--green)'):totA<totB?(tcB.tx||'var(--red)'):'var(--text3)';
+            const diffColor='color:'+diffTeamColor;
             html+=`<div style="padding:10px 12px;background:rgba(255,255,255,.025);border-top:1px solid var(--line)">
               <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:4px;margin-bottom:8px">
                 <div style="display:flex;justify-content:flex-end;gap:10px">${scoreRowsA.join('')}</div>
@@ -6864,8 +6894,8 @@ function renderTeamPO(){
         }
       }
       html+=`</div>`;
-      if(m.winner) break;
-    }
+    } // end for si
+    } // end if expanded
 
     // 출전 선수 관리
     if(!m.winner){
