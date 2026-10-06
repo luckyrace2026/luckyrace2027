@@ -1018,6 +1018,7 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
     // ── currentSeason(S 객체) 적용 ──
     Object.keys(localS).forEach(k => { delete localS[k]; });
     Object.keys(remoteS).forEach(k => { localS[k] = remoteS[k]; });
+    if(typeof ensureS === 'function') ensureS(); // Firebase sync 후 필수 필드 보장
     try { localStorage.setItem('lr2027', JSON.stringify(localS)); } catch(e) {}
 
     if (typeof window.repairBracket      === 'function') window.repairBracket();
@@ -1109,6 +1110,24 @@ function avcTeam(p,i){const tc=teamColor(p.team||'');return tc||{bg:AB[i%AB.leng
 
 // ─── STATE ───
 let S={init:false,players:[],matches:[],bracket:[],seasonRanks:{}};
+
+// S 필수 필드 보장 — S를 통째로 교체 후 반드시 호출
+function ensureS(){
+  if(!Array.isArray(S.players))   S.players   = [];
+  if(!Array.isArray(S.matches))   S.matches   = [];
+  if(!Array.isArray(S.bracket))   S.bracket   = [];
+  if(!S.seasonRanks || Array.isArray(S.seasonRanks) || typeof S.seasonRanks !== 'object') S.seasonRanks = {};
+  if(S.playerPO === undefined)    S.playerPO  = null;
+  if(S.teamPO   === undefined)    S.teamPO    = null;
+}
+
+// S 핵심 배열을 항상 안전하게 유지 (Firebase sync 등 외부 교체 후 자동 호출)
+// applyRemote에서 S를 교체할 때도 적용되도록 MutationObserver 대신 직접 패치
+const _origApplyKeys = function(src, dst){
+  Object.keys(dst).forEach(k=>{ delete dst[k]; });
+  Object.keys(src).forEach(k=>{ dst[k]=src[k]; });
+  ensureS();
+};
 // Firebase module 브릿지용 window 노출
 window.S = S;
 let MS={};
@@ -1185,6 +1204,7 @@ function switchSeason(yearKey){
   Object.keys(S).forEach(k => { delete S[k]; });
   if(seasonData){
     Object.keys(seasonData).forEach(k => { S[k] = seasonData[k]; });
+    ensureS(); // 로드된 데이터에 누락 필드 보장
   } else {
     // 새 시즌 초기 상태 (선수 유지, 기록 초기화)
     S.init = true;
@@ -1194,6 +1214,7 @@ function switchSeason(yearKey){
     S.playerPO = null;
     S.teamPO = null;
     buildBracket();
+    ensureEntries();
   }
   // lr2027 캐시도 새 시즌 데이터로 업데이트
   try{ localStorage.setItem('lr2027', JSON.stringify(S)); }catch(e){}
@@ -1257,162 +1278,143 @@ function saveWithSeasons(){
 // ─── ALLTIME STATS ─────────────────────────────────────────────────────────
 function calcAlltimeStats(){
   const all = getAllSeasons();
+  // 현재 시즌도 포함
   all[CURRENT_SEASON] = S;
   const seasonKeys = Object.keys(all).sort();
 
-  // 모든 시즌에 등장하는 선수 목록 구축
-  const playerMap = {};
-  seasonKeys.forEach(sk => {
-    const sd = all[sk]; if(!sd) return;
-    (sd.players||[]).forEach(p => {
-      if(p.id && !playerMap[p.id]) playerMap[p.id] = p;
-    });
-  });
-  const players = Object.values(playerMap);
+  // 선수 목록은 현재 시즌 기준
+  const players = S.players || [];
   if(!players.length) return [];
 
   const result = players.map(p => {
     let pts=0, cumScore=0, wins=0, draws=0, losses=0, g=0;
+    let firstScores=[], lastScores=[];
     let allScores=[], highScore=null, lowScore=null;
     let upsets=0, upsetVictims=0;
     let vrSum=0;
-    let firstScores=[], lastScores=[];
 
     seasonKeys.forEach(sk => {
       const sd = all[sk];
-      if(!sd || !sd.matches) return;
-      const SR = sd.seasonRanks || {};
-
-      // 정규시즌 매치만 (PO 제외)
+      if(!sd||!sd.matches) return;
       const done = sd.matches.filter(m =>
         m.done && m.gameNum!=='PO' && m.gameNum!=='TEAM_PO' &&
-        (m.p1id===p.id || m.p2id===p.id)
+        (m.p1id===p.id||m.p2id===p.id)
       );
-      if(!done.length) return;
 
-      // ── 매치별 집계 ──────────────────────────────────────
+      // 승점 계산 (seasonRanks 우선)
+      const seenG = new Set();
       done.forEach(m => {
-        const isP1 = m.p1id === p.id;
-        const sc = isP1 ? (m.p1score||0) : (m.p2score||0);
-        cumScore += sc;
-        allScores.push(sc);
-        g++;
+        const isP1 = m.p1id===p.id;
+        const sc = isP1 ? m.p1score : m.p2score;
+        cumScore += sc||0;
+        allScores.push(sc||0);
+        if(isP1 && m.roundType==='예선전') firstScores.push(sc||0);
+        else if(!isP1 && m.roundType==='예선전') lastScores.push(sc||0);
         if(m.isDraw) draws++;
         else if(m.winnerId===p.id) wins++;
         else losses++;
+        g++;
+        // 업셋
         if(!m.isDraw && m.upset){
-          if(m.winnerId===p.id) upsets++;
-          if(m.loserId===p.id) upsetVictims++;
+          if(m.winnerId===p.id) upsets++;       // 내가 하위시드인데 이겼음 = 업셋을 한 것
+          if(m.loserId===p.id) upsetVictims++;  // 내가 상위시드인데 졌음 = 업셋을 당한 것
         }
-        // 선공/후공 (p1=선공, p2=후공)
-        if(isP1) firstScores.push(sc);
-        else      lastScores.push(sc);
       });
-
-      // ── 경기별 순위 승점 (gameNum당 1회, pStats와 동일) ──
-      const seenGns = new Set(done.map(m => m.gameNum));
-      seenGns.forEach(gn => {
+      // 시즌 승점
+      const sr = sd.seasonRanks || {};
+      const seenGS = new Set(done.map(m=>m.gameNum));
+      seenGS.forEach(gn => {
+        if(seenG.has(gn)) return;
+        seenG.add(gn);
         let rank = null;
-        if(SR[gn] && SR[gn][p.id] != null){
-          rank = SR[gn][p.id];
-        } else {
-          const gm = done.find(m =>
-            m.gameNum===gn &&
-            ((m.p1id===p.id && m.p1spts!=null) ||
-             (m.p2id===p.id && m.p2spts!=null))
-          );
-          if(gm) rank = gm.p1id===p.id ? gm.p1spts : gm.p2spts;
-        }
-        if(rank != null) pts += SPTS_BY_RANK[rank] || 0;
-      });
-      // 매치 승/무 승점
-      done.forEach(m => {
-        if(m.winnerId===p.id) pts += 0.5;
-        else if(m.isDraw) pts += 0.25;
-      });
-
-      // ── 가치 평점 (시즌별) ────────────────────────────────
-      const allDone = (sd.matches||[]).filter(m =>
-        m.done && m.gameNum!=='PO' && m.gameNum!=='TEAM_PO'
-      );
-      const sScore = done.reduce((a,m) => a+(m.p1id===p.id?m.p1score:m.p2score), 0);
-      const sAvg   = done.length ? sScore/done.length : 0;
-      const playerAvgs = (sd.players||[]).map(pp => {
-        const pd = allDone.filter(m => m.p1id===pp.id || m.p2id===pp.id);
-        return pd.length ? pd.reduce((a,m) => a+(m.p1id===pp.id?m.p1score:m.p2score),0)/pd.length : 0;
-      }).filter(v => v > 0);
-      const globalAvg = playerAvgs.length ? playerAvgs.reduce((a,v)=>a+v,0)/playerAvgs.length : 1;
-      // 이 시즌 순위 승점만
-      let sPts2 = 0;
-      seenGns.forEach(gn => {
-        let rank = null;
-        if(SR[gn] && SR[gn][p.id]!=null) rank=SR[gn][p.id];
+        if(sr[gn]&&sr[gn][p.id]!=null) rank=sr[gn][p.id];
         else {
           const gm=done.find(m=>m.gameNum===gn&&((m.p1id===p.id&&m.p1spts!=null)||(m.p2id===p.id&&m.p2spts!=null)));
           if(gm) rank=gm.p1id===p.id?gm.p1spts:gm.p2spts;
         }
-        if(rank!=null) sPts2 += SPTS_BY_RANK[rank]||0;
+        if(rank!=null) pts += SPTS_BY_RANK[rank]||0;
       });
-      if(sPts2>0 && sAvg>0 && globalAvg>0){
-        vrSum += Math.log10(sPts2) + (sAvg/globalAvg);
+
+      // 가치 평점 (시즌별 pStats 기반 근사)
+      if(done.length>0){
+        const sScore=done.reduce((a,m)=>a+(m.p1id===p.id?m.p1score:m.p2score),0);
+        const sAvg=done.length?sScore/done.length:0;
+        const allPlayers=sd.players||[];
+        const allDone=sd.matches?sd.matches.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'):[];
+        const playerAvgs=allPlayers.map(pp=>{
+          const pd=allDone.filter(m=>m.p1id===pp.id||m.p2id===pp.id);
+          return pd.length?pd.reduce((a,m)=>a+(m.p1id===pp.id?m.p1score:m.p2score),0)/pd.length:0;
+        }).filter(v=>v>0);
+        const globalAvg=playerAvgs.length?playerAvgs.reduce((a,v)=>a+v,0)/playerAvgs.length:1;
+        let sPts2=0;
+        const sg=new Set(done.map(m=>m.gameNum));
+        sg.forEach(gn=>{
+          let rank=null;
+          if(sr[gn]&&sr[gn][p.id]!=null) rank=sr[gn][p.id];
+          if(rank!=null) sPts2+=SPTS_BY_RANK[rank]||0;
+        });
+        if(sPts2>0&&sAvg>0&&globalAvg>0){
+          vrSum += Math.log10(sPts2)+(sAvg/globalAvg);
+        }
       }
+
+      // 선공/후공 (bracketMatchId 있는 경우)
+      done.forEach(m=>{
+        const isP1=m.p1id===p.id;
+        const sc=isP1?m.p1score:m.p2score;
+        if(isP1) firstScores.push(sc||0);
+        else lastScores.push(sc||0);
+      });
     });
 
     if(allScores.length){
-      highScore = Math.max(...allScores);
-      const positive = allScores.filter(v=>v>0);
-      lowScore = positive.length ? Math.min(...positive) : null;
+      highScore=Math.max(...allScores);
+      lowScore=Math.min(...allScores.filter(v=>v>0));
     }
-    const avgScore = g ? Math.round(cumScore/g) : 0;
-    const firstAvg = firstScores.length ? Math.round(firstScores.reduce((a,v)=>a+v,0)/firstScores.length) : 0;
-    const lastAvg  = lastScores.length  ? Math.round(lastScores.reduce((a,v)=>a+v,0)/lastScores.length)  : 0;
-    const ppg = g ? parseFloat((pts/g).toFixed(2)) : 0;
 
-    // ── 점수 가치도 ──────────────────────────────────────────
-    let scoreValue=0, svCount=0;
-    seasonKeys.forEach(sk => {
+    const avgScore=g?Math.round(cumScore/g):0;
+    const firstAvg=firstScores.length?Math.round(firstScores.reduce((a,v)=>a+v,0)/firstScores.length):0;
+    const lastAvg=lastScores.length?Math.round(lastScores.reduce((a,v)=>a+v,0)/lastScores.length):0;
+    const ppg=g?parseFloat((pts/g).toFixed(2)):0;
+
+    // 점수 가치도 (sv 배열이 있는 경기만 / 2028시즌~)
+    let scoreValue=0;
+    let svCount=0;
+    seasonKeys.forEach(sk=>{
       const sd=all[sk]; if(!sd||!sd.matches) return;
-      sd.matches.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'&&(m.p1id===p.id||m.p2id===p.id)).forEach(m=>{
+      const done2=sd.matches.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'&&(m.p1id===p.id||m.p2id===p.id));
+      done2.forEach(m=>{
         const isP1=m.p1id===p.id;
         const sv=isP1?(m.p1sv||[]):(m.p2sv||[]);
-        if(sv.length>0){ sv.forEach(v=>{scoreValue+=v;svCount++;}); }
+        if(sv.length>0){ // sv 데이터 있는 경기만 집계
+          sv.forEach(v=>{scoreValue+=v;svCount++;});
+        }
       });
     });
-    const svAvg = svCount ? parseFloat((scoreValue/svCount).toFixed(2)) : null;
+    const svAvg=svCount?parseFloat((scoreValue/svCount).toFixed(2)):null;
 
-    // ── 점수 기여도 ──────────────────────────────────────────
+    // 점수 기여도 (공식: 100 + 내평균 - 전체시즌평균)
     let contribSum=0, contribCount=0;
-    seasonKeys.forEach(sk => {
+    seasonKeys.forEach(sk=>{
       const sd=all[sk]; if(!sd||!sd.matches) return;
       const done3=sd.matches.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'&&(m.p1id===p.id||m.p2id===p.id));
       if(!done3.length) return;
       const myAvg=done3.reduce((a,m)=>a+(m.p1id===p.id?m.p1score:m.p2score),0)/done3.length;
+      // 해당 시즌 전체 평균
       const allDone3=(sd.matches||[]).filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO');
-      const _ppAvgs3=(sd.players||[]).map(pp=>{const ppd=allDone3.filter(m=>m.p1id===pp.id||m.p2id===pp.id);return ppd.length?ppd.reduce((s,m)=>s+(m.p1id===pp.id?m.p1score:m.p2score),0)/ppd.length:0;}).filter(v=>v>0);
+      const allPlayers3=sd.players||[];
+      const _ppAvgs3=allPlayers3.map(pp=>{const ppd=allDone3.filter(m=>m.p1id===pp.id||m.p2id===pp.id);return ppd.length?ppd.reduce((s,m)=>s+(m.p1id===pp.id?m.p1score:m.p2score),0)/ppd.length:0;}).filter(v=>v>0);
       const gAvg3=_ppAvgs3.length?_ppAvgs3.reduce((a,v)=>a+v,0)/_ppAvgs3.length:myAvg;
       contribSum+=(100+(myAvg-gAvg3));
       contribCount++;
     });
-    const contrib = contribCount ? parseFloat((contribSum/contribCount).toFixed(2)) : null;
+    const contrib=contribCount?parseFloat((contribSum/contribCount).toFixed(2)):null;
 
     return {
-      p,
-      pts: parseFloat(pts.toFixed(2)),
-      cumScore, avgScore, wins, draws, losses, g,
-      vrSum: parseFloat(vrSum.toFixed(3)),
-      upsets, upsetVictims,
-      firstAvg, lastAvg, ppg,
-      scoreValue: svAvg, contrib,
-      highScore, lowScore
+      p, pts: parseFloat(pts.toFixed(2)), cumScore, avgScore, wins, draws, losses, g,
+      vrSum: parseFloat(vrSum.toFixed(3)), upsets, upsetVictims,
+      firstAvg, lastAvg, ppg, scoreValue: svAvg, contrib, highScore, lowScore
     };
-  });
-
-  // 현재 시즌 선수 순서 우선, 나머지 뒤에
-  const curIds = new Set((S.players||[]).map(p=>p.id));
-  result.sort((a,b) => {
-    const inA = curIds.has(a.p.id) ? 0 : 1;
-    const inB = curIds.has(b.p.id) ? 0 : 1;
-    return inA - inB;
   });
 
   return result;
@@ -1620,10 +1622,7 @@ function renderAlltimeTab(){
     cols.forEach(col => {
       const v = r[col.key];
       const active = col.key===sortKey;
-      const _ptsKeys={'pts':1,'ppg':1};
-      const disp = v===null||v===undefined ? '-' :
-        (_ptsKeys[col.key] ? fmt(v) :
-          (typeof v==='number'&&!Number.isInteger(v) ? parseFloat(v.toFixed(1)) : v));
+      const disp = v===null||v===undefined ? '-' : (typeof v==='number'&&!Number.isInteger(v) ? v.toFixed(2) : v);
       html += `<td style="text-align:right;padding:5px 6px;white-space:nowrap;font-family:'DM Mono',monospace;color:${active?'var(--accent)':'var(--text2)'};font-weight:${active?'700':'400'}">${disp}</td>`;
     });
     html += '</tr>';
@@ -1651,14 +1650,23 @@ function load(){
       }
     }
 
-    // 3단계: allSeasons에 없으면 lr2027(currentSeason 캐시) 폴백
+    // 3단계: allSeasons에 없으면 lr2027 캐시 폴백
+    // ※ 단, 캐시 시즌과 CURRENT_SEASON이 일치할 때만 적용 (다른 시즌 데이터 로드 방지)
     const d = localStorage.getItem('lr2027');
     if(d){
-      const parsed = JSON.parse(d);
-      Object.keys(S).forEach(k=>{delete S[k];});
-      Object.keys(parsed).forEach(k=>{S[k]=parsed[k];});
+      try{
+        const parsed = JSON.parse(d);
+        // 캐시된 시즌키와 현재 시즌키가 같을 때만 로드
+        const cachedSeasonKey = localStorage.getItem(CURRENT_KEY);
+        if(!cachedSeasonKey || cachedSeasonKey === CURRENT_SEASON){
+          Object.keys(S).forEach(k=>{delete S[k];});
+          Object.keys(parsed).forEach(k=>{S[k]=parsed[k];});
+        }
+        // 불일치 시: S는 기본 초기 상태 유지 (빈 새 시즌)
+      }catch(e){}
     }
   }catch(e){}
+  ensureS(); // S 필수 필드 항상 보장 (matches, bracket 등 undefined 방지)
 }
 function repairBracket(){
   if(!S.bracket||!S.matches)return;
@@ -1702,17 +1710,15 @@ function repairBracket(){
 function save(){
   S.updatedAt = Date.now();
   try{ localStorage.setItem('lr2027', JSON.stringify(S)); }catch(e){}
-  // allSeasons 먼저 동기화 (Firebase 업로드 전)
-  // CURRENT_SEASON이 localStorage와 다를 수 있으므로 반드시 재동기화
+  // allSeasons 동기화: 반드시 CURRENT_SEASON 기준으로 저장
+  // ※ localStorage의 savedKey로 덮어쓰지 않음 (시즌 전환 직후 오염 방지)
   try{
-    const savedKey = localStorage.getItem(CURRENT_KEY);
-    if(savedKey && savedKey !== CURRENT_SEASON) CURRENT_SEASON = savedKey;
     const all = getAllSeasons();
     all[CURRENT_SEASON] = JSON.parse(JSON.stringify(S));
     localStorage.setItem(SEASONS_KEY, JSON.stringify(all));
     localStorage.setItem(CURRENT_KEY, CURRENT_SEASON);
   }catch(e){}
-  // Firebase 업로드 (allSeasons가 최신 상태인 시점에)
+  // Firebase 업로드
   if(typeof window._fbSave === 'function') window._fbSave(S);
 }
 load();
@@ -1746,7 +1752,7 @@ function avc(i){return{bg:AB[i%AB.length],tx:AT[i%AT.length]};}
 let _uidCounter=0;
 function uid(){return 'x'+Date.now()+'_'+(++_uidCounter)+'_'+Math.floor(Math.random()*99999);}
 function sp(id){return S.players.find(p=>p.id===id);}
-function fmt(v){return v==null?'0':parseFloat(v).toFixed(1);}
+function fmt(v){return v==null?'0':(v%1===0?v.toString():v.toFixed(1));}
 function fmtVR(v){return(v==null?0:v).toFixed(4);}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 
@@ -3425,16 +3431,6 @@ function detailSpecial(){
 
   // ── 역대 누적 달성 현황 ───────────────────────────────
   function calcCareerThreshold(type, thresholds){
-    // ─────────────────────────────────────────────────────────
-    // 설계 원칙:
-    //  1) 선수별 누적 타임라인 구축 (시즌→경기 순서대로)
-    //  2) 경기 참가 선수 = seasonRanks[gn]에 있는 모든 선수
-    //     (매치에만 의존하면 예선탈락자 누락 버그 발생)
-    //  3) 승점 = 순위승점(seasonRanks 우선) + 매치승리/무승부 승점
-    //  4) 각 임계값t 독립 스캔 → t이상 & 다음임계값 미달 선수만 표시
-    //  5) PO/TEAM_PO 완전 제외
-    // ─────────────────────────────────────────────────────────
-
     function getMatchNum(sd, gnInt, roundType, bracketMatchId){
       var mn=null;
       (sd.bracket||[]).forEach(function(bg){
@@ -3446,116 +3442,68 @@ function detailSpecial(){
       });
       return mn;
     }
-
-    var cumMap  = {};
-    var timeline= {};
+    var cumMap={}, timeline={};
 
     if(type==='pts'){
       seasonKeys.forEach(function(sk){
         var sd=allSeasons[sk]; if(!sd) return;
         var SR=sd.seasonRanks||{};
-        var allDone=(sd.matches||[]).filter(function(m){
-          return m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO';
-        });
-        // 경기 번호 목록 (정렬)
+        var allDone=(sd.matches||[]).filter(function(m){return m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO';});
         var gnSet={};
         allDone.forEach(function(m){gnSet[m.gameNum]=true;});
-        // seasonRanks에서도 경기 번호 추가 (매치 없이도 순위 있는 경우 대비)
         Object.keys(SR).forEach(function(gn){gnSet[gn]=true;});
         var gameNums=Object.keys(gnSet).sort(function(a,b){return parseInt(a)-parseInt(b);});
-
-        // 이 시즌 선수 초기화
-        (sd.players||[]).forEach(function(p){
-          if(!p.id) return;
-          if(cumMap[p.id]==null) cumMap[p.id]=0;
-          if(!timeline[p.id]) timeline[p.id]=[];
-        });
-
+        (sd.players||[]).forEach(function(p){if(!p.id)return;if(cumMap[p.id]==null)cumMap[p.id]=0;if(!timeline[p.id])timeline[p.id]=[];});
         gameNums.forEach(function(gn){
           var gnInt=parseInt(gn);
           var gnMatches=allDone.filter(function(m){return m.gameNum===gn;});
-
-          // 이 경기에 관련된 선수: seasonRanks에 있는 선수 + 매치 참가자 모두 포함
           var gnPids={};
-          (sd.players||[]).forEach(function(p){
-            // seasonRanks에 이 경기 순위가 있으면 무조건 포함
-            if(SR[gn]&&SR[gn][p.id]!=null) gnPids[p.id]=true;
-          });
-          // 매치 참가자도 포함 (spts 폴백용)
-          gnMatches.forEach(function(m){
-            if(m.p1id) gnPids[m.p1id]=true;
-            if(m.p2id) gnPids[m.p2id]=true;
-          });
-
+          (sd.players||[]).forEach(function(p){if(SR[gn]&&SR[gn][p.id]!=null)gnPids[p.id]=true;});
+          gnMatches.forEach(function(m){if(m.p1id)gnPids[m.p1id]=true;if(m.p2id)gnPids[m.p2id]=true;});
           Object.keys(gnPids).forEach(function(pid){
             var myM=gnMatches.filter(function(m){return m.p1id===pid||m.p2id===pid;});
-            // 순위 승점: seasonRanks 우선, 없으면 spts 폴백
             var rank=null;
-            if(SR[gn]&&SR[gn][pid]!=null){ rank=SR[gn][pid]; }
-            else {
-              for(var i=0;i<myM.length;i++){
-                var s=myM[i].p1id===pid?myM[i].p1spts:myM[i].p2spts;
-                if(s!=null){rank=s;break;}
-              }
-            }
+            if(SR[gn]&&SR[gn][pid]!=null){rank=SR[gn][pid];}
+            else{for(var i=0;i<myM.length;i++){var s=myM[i].p1id===pid?myM[i].p1spts:myM[i].p2spts;if(s!=null){rank=s;break;}}}
             var gnPts=rank!=null?(SPTS[rank]||0):0;
-            // 매치 승리/무승부 승점
-            myM.forEach(function(m){
-              if(m.isDraw) gnPts+=0.25;
-              else if(m.winnerId===pid) gnPts+=0.5;
-            });
+            myM.forEach(function(m){if(m.isDraw)gnPts+=0.25;else if(m.winnerId===pid)gnPts+=0.5;});
             cumMap[pid]=parseFloat(((cumMap[pid]||0)+gnPts).toFixed(2));
-
-            // 달성 시점: 이 경기에서 가장 높은 라운드 매치 (순위 확정 시점)
-            var lastRound=null, lastMn=null;
-            if(myM.length>0){
-              var sortedM=myM.slice().sort(function(a,b){
-                return RO.indexOf(b.roundType)-RO.indexOf(a.roundType);
-              });
-              var lastM=sortedM[0];
-              lastRound=lastM.roundType;
-              lastMn=getMatchNum(sd,gnInt,lastRound,lastM.bracketMatchId);
-            }
-            if(!timeline[pid]) timeline[pid]=[];
-            timeline[pid].push({sk:sk,gn:gnInt,roundType:lastRound,mn:lastMn,cum:cumMap[pid]});
+            var sortedM=myM.slice().sort(function(a,b){return RO.indexOf(b.roundType)-RO.indexOf(a.roundType);});
+            var lastM=sortedM[0]; var lastRound=lastM?lastM.roundType:null;
+            var mn=lastM?getMatchNum(sd,gnInt,lastRound,lastM.bracketMatchId):null;
+            if(!timeline[pid])timeline[pid]=[];
+            timeline[pid].push({sk:sk,gn:gnInt,roundType:lastRound,mn:mn,cum:cumMap[pid]});
           });
         });
       });
-
     } else if(type==='score'){
       seasonKeys.forEach(function(sk){
         var sd=allSeasons[sk]; if(!sd) return;
         var allDone=(sd.matches||[]).filter(function(m){return m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO';});
         var stream=allDone.slice().sort(function(a,b){var ga=parseInt(a.gameNum),gb=parseInt(b.gameNum);if(ga!==gb)return ga-gb;return RO.indexOf(a.roundType)-RO.indexOf(b.roundType);});
         (sd.players||[]).forEach(function(p){if(p.id&&cumMap[p.id]==null){cumMap[p.id]=0;timeline[p.id]=[];}});
-        stream.forEach(function(m){
-          [[m.p1id,0],[m.p2id,1]].forEach(function(arr){
-            var pid=arr[0],pi=arr[1]; if(!pid) return;
-            var gn=parseInt(m.gameNum);
-            cumMap[pid]=(cumMap[pid]||0)+(pi===0?(m.p1score||0):(m.p2score||0));
-            if(!timeline[pid]) timeline[pid]=[];
-            timeline[pid].push({sk:sk,gn:gn,roundType:m.roundType,mn:getMatchNum(sd,gn,m.roundType,m.bracketMatchId),cum:cumMap[pid]});
-          });
-        });
+        stream.forEach(function(m){[[m.p1id,0],[m.p2id,1]].forEach(function(arr){
+          var pid=arr[0],pi=arr[1]; if(!pid) return;
+          var gn=parseInt(m.gameNum);
+          cumMap[pid]=(cumMap[pid]||0)+(pi===0?(m.p1score||0):(m.p2score||0));
+          if(!timeline[pid])timeline[pid]=[];
+          timeline[pid].push({sk:sk,gn:gn,roundType:m.roundType,mn:getMatchNum(sd,gn,m.roundType,m.bracketMatchId),cum:cumMap[pid]});
+        });});
       });
-
     } else if(type==='wins'){
       seasonKeys.forEach(function(sk){
         var sd=allSeasons[sk]; if(!sd) return;
         var allDone=(sd.matches||[]).filter(function(m){return m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO';});
         var stream=allDone.slice().sort(function(a,b){var ga=parseInt(a.gameNum),gb=parseInt(b.gameNum);if(ga!==gb)return ga-gb;return RO.indexOf(a.roundType)-RO.indexOf(b.roundType);});
         (sd.players||[]).forEach(function(p){if(p.id&&cumMap[p.id]==null){cumMap[p.id]=0;timeline[p.id]=[];}});
-        stream.forEach(function(m){
-          [[m.p1id,0],[m.p2id,1]].forEach(function(arr){
-            var pid=arr[0]; if(!pid) return;
-            var gn=parseInt(m.gameNum);
-            if(m.winnerId===pid&&!m.isDraw) cumMap[pid]=(cumMap[pid]||0)+1;
-            if(!timeline[pid]) timeline[pid]=[];
-            timeline[pid].push({sk:sk,gn:gn,roundType:m.roundType,mn:getMatchNum(sd,gn,m.roundType,m.bracketMatchId),cum:cumMap[pid]||0});
-          });
-        });
+        stream.forEach(function(m){[[m.p1id,0],[m.p2id,1]].forEach(function(arr){
+          var pid=arr[0]; if(!pid) return;
+          var gn=parseInt(m.gameNum);
+          if(m.winnerId===pid&&!m.isDraw) cumMap[pid]=(cumMap[pid]||0)+1;
+          if(!timeline[pid])timeline[pid]=[];
+          timeline[pid].push({sk:sk,gn:gn,roundType:m.roundType,mn:getMatchNum(sd,gn,m.roundType,m.bracketMatchId),cum:cumMap[pid]||0});
+        });});
       });
-
     } else if(type==='upset'){
       seasonKeys.forEach(function(sk){
         var sd=allSeasons[sk]; if(!sd) return;
@@ -3564,52 +3512,67 @@ function detailSpecial(){
         stream.forEach(function(m){
           var pid=m.winnerId; var gn=parseInt(m.gameNum);
           cumMap[pid]=(cumMap[pid]||0)+1;
-          if(!timeline[pid]) timeline[pid]=[];
+          if(!timeline[pid])timeline[pid]=[];
           timeline[pid].push({sk:sk,gn:gn,roundType:m.roundType,mn:getMatchNum(sd,gn,m.roundType,m.bracketMatchId),cum:cumMap[pid]});
         });
       });
-
     } else if(type==='vr'){
+      // 달성 확정: 1)시즌종료 후 cum>=t  2)시즌중 cum>=t+0.2
       seasonKeys.forEach(function(sk){
-        if(!isSeasonDone(sk)) return;
         var sd=allSeasons[sk]; if(!sd) return;
-        getSeasonVR(sd).forEach(function(x){
-          cumMap[x.pid]=(cumMap[x.pid]||0)+x.value;
-          if(!timeline[x.pid]) timeline[x.pid]=[];
-          timeline[x.pid].push({sk:sk,gn:null,roundType:null,mn:null,cum:cumMap[x.pid]});
+        var seasonDone=isSeasonDone(sk);
+        var allDone=(sd.matches||[]).filter(function(m){return m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO';});
+        var SR=sd.seasonRanks||{};
+        var pAvgs=(sd.players||[]).map(function(pp){
+          var pd=allDone.filter(function(m){return m.p1id===pp.id||m.p2id===pp.id;});
+          return pd.length?pd.reduce(function(a,m){return a+(m.p1id===pp.id?m.p1score:m.p2score);},0)/pd.length:0;
+        }).filter(function(v){return v>0;});
+        var gAvg=pAvgs.length?pAvgs.reduce(function(a,v){return a+v;},0)/pAvgs.length:1;
+        (sd.players||[]).forEach(function(p){
+          var pid=p.id;
+          var done=allDone.filter(function(m){return m.p1id===pid||m.p2id===pid;});
+          if(!done.length) return;
+          var sScore=done.reduce(function(a,m){return a+(m.p1id===pid?m.p1score:m.p2score);},0);
+          var sAvg=sScore/done.length;
+          var seenG={},sPts2=0;
+          done.forEach(function(m){
+            if(!seenG[m.gameNum]){seenG[m.gameNum]=true;
+              var rank=(SR[m.gameNum]&&SR[m.gameNum][pid]!=null)?SR[m.gameNum][pid]:null;
+              if(rank==null){var s=m.p1id===pid?m.p1spts:m.p2spts;if(s!=null)rank=s;}
+              if(rank!=null)sPts2+=SPTS[rank]||0;}
+            if(m.winnerId===pid)sPts2+=0.5;else if(m.isDraw)sPts2+=0.25;
+          });
+          if(sPts2>0&&sAvg>0&&gAvg>0){
+            var vr=Math.log10(sPts2)+(sAvg/gAvg);
+            cumMap[pid]=parseFloat(((cumMap[pid]||0)+vr).toFixed(4));
+            if(!timeline[pid])timeline[pid]=[];
+            timeline[pid].push({sk:sk,gn:null,roundType:null,mn:null,cum:cumMap[pid],seasonDone:seasonDone});
+          }
         });
       });
     }
 
-    // ── 임계값별 최초 달성 시점 독립 스캔 ─────────────────
-    function sortKey(e){
-      return [e.sk||'', e.gn!=null?e.gn:9999,
-              e.roundType&&RO.indexOf(e.roundType)>=0?RO.indexOf(e.roundType):0,
-              e.mn!=null?e.mn:9999];
-    }
-    function cmpKey(a,b){
-      for(var i=0;i<a.length;i++){if(a[i]!==b[i])return a[i]<b[i]?-1:1;}
-      return 0;
-    }
+    function sortKey(e){return [e.sk||'',e.gn!=null?e.gn:9999,e.roundType&&RO.indexOf(e.roundType)>=0?RO.indexOf(e.roundType):0,e.mn!=null?e.mn:9999];}
+    function cmpKey(a,b){for(var i=0;i<a.length;i++){if(a[i]!==b[i])return a[i]<b[i]?-1:1;}return 0;}
 
+    var VR_BUFFER=0.2;
     var hitsByT={};
     thresholds.forEach(function(t){
       hitsByT[t]=[];
       Object.keys(timeline).forEach(function(pid){
         var tl=timeline[pid];
         for(var i=0;i<tl.length;i++){
-          if(tl[i].cum>=t){
-            hitsByT[t].push({pid:pid,entry:tl[i],skey:sortKey(tl[i])});
-            break;
-          }
+          var e=tl[i]; var confirmed=false;
+          if(type==='vr'){
+            if(e.seasonDone&&e.cum>=t) confirmed=true;
+            if(e.cum>=t+VR_BUFFER) confirmed=true;
+          } else { confirmed=(e.cum>=t); }
+          if(confirmed){hitsByT[t].push({pid:pid,entry:e,skey:sortKey(e)});break;}
         }
       });
       hitsByT[t].sort(function(a,b){return cmpKey(a.skey,b.skey);});
-
     });
 
-    // 각 임계값별 독립 달성자 목록
-    // (중복 허용: 500pt 명단과 1000pt 명단은 독립적으로 구성)
     var achieved={};
     thresholds.forEach(function(t){
       achieved[t]=(hitsByT[t]||[]).map(function(h,i){
@@ -3620,8 +3583,6 @@ function detailSpecial(){
   }
 
   function dynamicThresholds(type, base, step, achieved){
-    // base는 무조건 포함 (드롭다운에 최소 1개 항목)
-    // 이후 임계값은 이전 단계 달성자가 있을 때만 포함
     var result=[base];
     var cur=base+step;
     while(cur<=base+step*39){
@@ -3630,61 +3591,6 @@ function detailSpecial(){
       cur+=step;
     }
     return result;
-  }
-
-  function ahCardSimple(uid, titleLabel, achieved, thresholds, fmtT){
-    // thresholds[0]은 달성자 없어도 버튼 생성 (최소 1개 보장)
-    // 이후는 달성자 있을 때만 버튼 생성
-    var btnT=thresholds.filter(function(t,i){
-      return i===0||(achieved[t]||[]).length>0;
-    });
-    var defT=btnT[0];
-
-    function timeTag(r){
-      if(!r.sk) return '';
-      var s=r.sk+'시즌';
-      if(r.gameNum!=null) s+=' '+r.gameNum+'경기';
-      if(r.roundType) s+=' ('+r.roundType+(r.matchNum?'-'+r.matchNum:'')+')';
-      return s;
-    }
-
-    function listHtml(t){
-      var list=achieved[t]||[];
-      if(!list.length) return '<div class="sp-none">아직 달성자 없음</div>';
-      return list.map(function(r){
-        return '<div class="sp-ah-row">'
-          +'<span class="sp-ah-num">'+r.order+'</span>'
-          +'<span class="sp-ah-name">'+nmt(r.pid)+'</span>'
-          +'<span class="sp-ah-sk">'+timeTag(r)+'</span>'
-          +'</div>';
-      }).join('');
-    }
-
-    // 섹션 (id: sp_uid_t)
-    var sects=btnT.map(function(t){
-      return '<div id="sp_'+uid+'_'+t+'" class="sp-ah-sect" style="display:'+(t===defT?'block':'none')+'">'+listHtml(t)+'</div>';
-    }).join('');
-
-    // 버튼 — onclick 내부는 모두 단따옴표 사용 (HTML attribute 충돌 방지)
-    var btns=btnT.map(function(t){
-      var active=(t===defT);
-      // uid와 t를 직접 치환하여 클로저 문제 방지
-      // onclick 내부: 단따옴표만 사용
-      var sectId='sp_'+uid+'_'+t;
-      var oc=''
-        +"document.querySelectorAll('[id^=sp_"+uid+"_]').forEach(function(e){e.style.display='none';});"
-        +"document.getElementById('"+sectId+"').style.display='block';"
-        +"document.querySelectorAll('[data-ah=\\'"+uid+"\\']').forEach(function(b){b.classList.remove('sp-ah-btn-active');});"
-        +"this.classList.add('sp-ah-btn-active');";
-      return '<button class="sp-ah-btn'+(active?' sp-ah-btn-active':'')+'" data-ah="'+uid+'" onclick="'+oc+'">'
-        +fmtT(t)+'</button>';
-    }).join('');
-
-    return '<div class="sp-ah-card">'
-      +'<div class="sp-title">'+titleLabel+'</div>'
-      +'<div class="sp-ah-btns">'+btns+'</div>'
-      +'<div>'+sects+'</div>'
-      +'</div>';
   }
 
   // ── CSS ───────────────────────────────────────────────
@@ -3708,11 +3614,7 @@ function detailSpecial(){
       '.sp-ah-num{font-family:"DM Mono",monospace;font-size:11px;color:var(--text3);width:22px;flex-shrink:0}',
       '.sp-ah-name{flex:1;font-weight:500}',
       '.sp-ah-sk{font-size:10px;color:var(--text3);margin-left:auto}',
-      '@media(max-width:480px){.sp-grid{grid-template-columns:repeat(2,1fr)}}',
-      '.sp-ah-btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}',
-      '.sp-ah-btn{padding:5px 12px;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit}',
-      '.sp-ah-btn:hover{border-color:var(--accent);color:var(--accent)}',
-      '.sp-ah-btn-active{background:var(--accent)!important;border-color:var(--accent)!important;color:#0e0f11!important;font-weight:600}'
+      '@media(max-width:480px){.sp-grid{grid-template-columns:repeat(2,1fr)}}'
     ].join('');
     document.head.appendChild(st);
   }
@@ -3728,6 +3630,42 @@ function detailSpecial(){
       +(prevStr?'<div class="sp-prev">(종전: '+prevStr+')</div>':'')
       +'</div>';
   }
+
+  function ahCardSimple(uid, titleLabel, achieved, thresholds, fmtT){
+    var btnT=thresholds.filter(function(t,i){return i===0||(achieved[t]||[]).length>0;});
+    var defT=btnT[0];
+    function timeTag(r){
+      if(!r.sk) return '';
+      var s=r.sk+'시즌';
+      if(r.gameNum!=null) s+=' '+r.gameNum+'경기';
+      if(r.roundType) s+=' ('+r.roundType+(r.matchNum?'-'+r.matchNum:'')+')';
+      return s;
+    }
+    function listHtml(t){
+      var list=achieved[t]||[];
+      if(!list.length) return '<div class="sp-none">아직 달성자 없음</div>';
+      return list.map(function(r){
+        return '<div class="sp-ah-row"><span class="sp-ah-num">'+r.order+'</span>'
+          +'<span class="sp-ah-name">'+nmt(r.pid)+'</span>'
+          +'<span class="sp-ah-sk">'+timeTag(r)+'</span></div>';
+      }).join('');
+    }
+    var sects=btnT.map(function(t){
+      return '<div id="sp_'+uid+'_'+t+'" class="sp-ah-sect" style="display:'+(t===defT?'block':'none')+'">'+listHtml(t)+'</div>';
+    }).join('');
+    var btns=btnT.map(function(t){
+      var active=(t===defT);
+      var sid='sp_'+uid+'_'+t;
+      var oc="document.querySelectorAll('[id^=sp_"+uid+"_]').forEach(function(e){e.style.display='none';});"
+        +"document.getElementById('"+sid+"').style.display='block';"
+        +"document.querySelectorAll('[data-ah=\\'"+uid+"\\']').forEach(function(b){b.classList.remove('sp-ah-btn-active');});"
+        +"this.classList.add('sp-ah-btn-active');";
+      return '<button class="sp-ah-btn'+(active?' sp-ah-btn-active':'')+'" data-ah="'+uid+'" onclick="'+oc+'">'+fmtT(t)+'</button>';
+    }).join('');
+    return '<div class="sp-ah-card"><div class="sp-title">'+titleLabel+'</div>'
+      +'<div class="sp-ah-btns">'+btns+'</div><div>'+sects+'</div></div>';
+  }
+
   // ── 계산 및 렌더 ─────────────────────────────────────
   var r16=calcConsec('16강전'),r8=calcConsec('8강전'),r4=calcConsec('준결승'),rF=calcConsec('결승');
   var hs7=calcConsecScore(700),hs6=calcConsecScore(600);
@@ -3744,11 +3682,12 @@ function detailSpecial(){
   var sWin=calcSeasonStat(getSeasonWins),sAvg=calcSeasonStat(getSeasonAvgScore);
   var sVR=calcSeasonStat(getSeasonVR),sCont=calcSeasonStat(getSeasonContrib);
 
-  // 역대 달성 임계값 — 한 번만 계산 후 재사용
+  // 역대 누적 달성 임계값 — 한 번만 계산 후 재사용
   var BIG=40;
   var _ptsList=[]; for(var _i=0;_i<BIG;_i++) _ptsList.push(500+500*_i);
   var ptsAchieved=calcCareerThreshold('pts',_ptsList);
   var ptsTh=dynamicThresholds('pts',500,500,ptsAchieved);
+
   var _scList=[]; for(var _i=0;_i<BIG;_i++) _scList.push(25000+25000*_i);
   var scAchieved=calcCareerThreshold('score',_scList);
   var scTh=dynamicThresholds('score',25000,25000,scAchieved);
@@ -3764,22 +3703,6 @@ function detailSpecial(){
   var _vrList=[]; for(var _i=0;_i<BIG;_i++) _vrList.push(10+10*_i);
   var vrAchieved=calcCareerThreshold('vr',_vrList);
   var vrTh=dynamicThresholds('vr',10,10,vrAchieved);
-  // DEBUG vr
-  console.log('[VR] vrTh=',vrTh,'vrAchieved[10] 수='+(vrAchieved[10]||[]).length);
-  if((vrAchieved[10]||[]).length===0){
-    // vr 직접 계산
-    var _vrCheck={};
-    seasonKeys.forEach(function(sk){
-      if(!isSeasonDone(sk)) return;
-      var sd=allSeasons[sk]; if(!sd) return;
-      getSeasonVR(sd).forEach(function(x){_vrCheck[x.pid]=(_vrCheck[x.pid]||0)+x.value;});
-    });
-    var over10=Object.keys(_vrCheck).filter(function(p){return _vrCheck[p]>=10;});
-    console.log('[VR] 직접계산 10이상:'+over10.length+'명');
-    var allVals=Object.values(_vrCheck).sort(function(a,b){return b-a;}).slice(0,5);
-    console.log('[VR] TOP5 vr값:', allVals);
-    console.log('[VR] isSeasonDone 2027:'+isSeasonDone('2027')+', 2028:'+isSeasonDone('2028'));
-  }
 
   var html='';
 
@@ -3802,7 +3725,7 @@ function detailSpecial(){
    [fp400,'승점 400pt 달성'],[fp500,'승점 500pt 달성'],[fs10k,'누적 10,000점 달성'],
    [fs20k,'누적 20,000점 달성'],[fw10,'10승 달성'],[fw15,'15승 달성'],[fw20,'20승 달성']].forEach(function(arr){
     var r=arr[0],lbl=arr[1],t=r.top,p=r.prev;
-    var mTag=function(r){return r.gameNum+'경기 ('+(r.roundType)+(r.matchNum?'-'+r.matchNum:'')+')';};
+    var mTag=function(r){return r.gameNum+'경기 ('+(r.roundType)+(r.matchNum?'-'+r.matchNum:'')+')';}; 
     var vs=t?mTag(t):''; var ps=p?nmt(p.pid)+', '+p.sk+'시즌, '+mTag(p):null;
     html+=card(lbl,t,vs,t?t.sk:'',ps);
   });
@@ -3835,9 +3758,13 @@ function detailSpecial(){
   html+=ahCardSimple('up','역대 누적 업셋 달성 현황',upAchieved,upTh,function(t){return '누적 '+t+'회 달성';});
   html+=ahCardSimple('vr','역대 누적 평점 합 달성 현황',vrAchieved,vrTh,function(t){return '누적 '+t+'점 달성';});
 
-
   return '<div style="padding-bottom:12px">'+html+'</div>';
 }
+
+// CURRENT_SEASON 동기화 함수 (Firebase applyRemote에서 호출)
+window._setCURRENT_SEASON = function(key){
+  if(key) CURRENT_SEASON = key;
+};
 
 window.onload=()=>{
   window.S=S;
@@ -6501,7 +6428,7 @@ function renderPOLeagueTable(playerIds, matchMap, stats, sorted, title, accentCo
         <span style="color:var(--text)">${p.name}</span>
         <span style="font-size:10px;color:var(--text3);margin-left:2px">${p.team||''}</span>
       </div></td>
-      <td style="text-align:center;padding:4px 6px;font-weight:600;color:${isAccent?'var(--accent)':'var(--text2)'}">${fmt(s.pts)}</td>
+      <td style="text-align:center;padding:4px 6px;font-weight:600;color:${isAccent?'var(--accent)':'var(--text2)'}">${s.pts}</td>
       <td style="text-align:center;padding:4px 6px;color:var(--text2)">${avg}</td>
       <td style="text-align:center;padding:4px 6px;color:var(--text3)">${s.games}</td>
     </tr>`;
@@ -6560,6 +6487,7 @@ function confirmResult(){
   };
   // PO 경기는 정규 시즌과 완전 분리 — S.matches에 저장하지 않음
   if(MS.gameNum!=='PO'&&MS.gameNum!=='TEAM_PO'){
+    if(!Array.isArray(S.matches)) S.matches=[];
     S.matches.push(rec);
   }
   if(MS.bmid) updateBracket(MS.bmid,MS.win,MS.lose,MS.p1f,MS.p2f);
@@ -7079,4 +7007,8 @@ function startTeamPOGame(phase,setIdx,gameIdx){
 
 </script>
 </body>
-</html>
+</html      '.sp-ah-btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}',
+      '.sp-ah-btn{padding:5px 12px;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s}',
+      '.sp-ah-btn:hover{border-color:var(--accent);color:var(--accent)}',
+      '.sp-ah-btn-active{background:var(--accent)!important;border-color:var(--accent)!important;color:#0e0f11!important;font-weight:600}',
+>
