@@ -602,20 +602,20 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
   <div id="tab-players" class="tab">
     <!-- 서브탭 네비게이션 -->
     <div class="inner-nav" style="margin-bottom:12px">
-      <button class="inner-btn active" id="ptab-rank-btn" onclick="switchPlayerTab('rank',this)">선수 순위</button>
-      <button class="inner-btn" id="ptab-mgmt-btn" onclick="switchPlayerTab('mgmt',this)">선수 관리</button>
+      <button class="inner-btn active" id="ptab-rank-btn" onclick="switchPlayerTab('rank',this)">선수 관리</button>
+      <button class="inner-btn" id="ptab-mgmt-btn" onclick="switchPlayerTab('mgmt',this)">엔트리 관리</button>
     </div>
 
-    <!-- 선수 순위 탭 -->
+    <!-- 선수 관리 탭 -->
     <div id="ptab-rank" class="inner-tab active">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div class="sec-label" style="margin:0">선수 명단 <span style="font-size:10px;color:var(--text3);font-weight:400">(1경기 이상 출전)</span></div>
+        <div class="sec-label" style="margin:0">선수 관리 <span style="font-size:10px;color:var(--text3);font-weight:400"></span></div>
         <button class="btn btn-sm" onclick="openAddModal()">+ 추가</button>
       </div>
       <div id="players-body"></div>
     </div>
 
-    <!-- 선수 관리 탭 -->
+    <!-- 엔트리 관리 탭 -->
     <div id="ptab-mgmt" class="inner-tab">
       <div style="margin-bottom:10px">
         <p style="font-size:12px;color:var(--text3);margin:0 0 4px">팀당 최대 7명 등록 / 엔트리(체크) 정확히 4명 필수</p>
@@ -944,6 +944,7 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       📤 데이터 불러오기 (파일 업로드)
       <input type="file" accept=".json" style="display:none" onchange="importData(this)">
     </label>
+    <button class="btn btn-block" style="margin-bottom:8px;border-color:rgba(220,38,38,.35);color:var(--red)" onclick="closeSettings();openReleasedMgmt()">방출 선수 관리</button>
     <button class="btn btn-block" onclick="closeSettings()">닫기</button>
   </div>
 </div>
@@ -957,6 +958,59 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       <button class="btn" style="flex:1" onclick="closeAddModal()">취소</button>
       <button class="btn btn-accent" style="flex:1" onclick="addPlayerModal()">추가</button>
     </div>
+  </div>
+</div>
+
+<!-- 선수 정보 수정 모달 -->
+<div id="modal-edit-player" class="moverlay hidden" onclick="if(event.target===this)hideM('modal-edit-player')">
+  <div class="mbox">
+    <div class="mtitle">선수 정보 수정</div>
+    <div class="frow"><label>이름</label><input id="ep-name" placeholder="이름"/></div>
+    <div class="frow"><label>나이</label><input id="ep-age" type="number" placeholder="나이"/></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn" style="flex:1" onclick="hideM('modal-edit-player')">취소</button>
+      <button class="btn btn-accent" style="flex:1" onclick="confirmEditPlayer()">수정</button>
+    </div>
+  </div>
+</div>
+
+<!-- 선수 이적 모달 -->
+<div id="modal-transfer-player" class="moverlay hidden" onclick="if(event.target===this)hideM('modal-transfer-player')">
+  <div class="mbox">
+    <div class="mtitle">선수 이적</div>
+    <p id="tp-info" style="font-size:13px;color:var(--text2);margin-bottom:12px"></p>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:10px">이적할 팀을 선택하세요 (팀당 최대 7명)</p>
+    <div id="tp-team-list" style="display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto;margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" style="flex:1" onclick="hideM('modal-transfer-player')">취소</button>
+      <button class="btn btn-accent" style="flex:1" onclick="confirmTransferPlayer()">이적 확정</button>
+    </div>
+  </div>
+</div>
+
+<!-- 선수 방출 모달 -->
+<div id="modal-release-player" class="moverlay hidden" onclick="if(event.target===this)hideM('modal-release-player')">
+  <div class="mbox">
+    <div class="mtitle" style="color:var(--red)">선수 방출</div>
+    <p id="rp-info" style="font-size:13px;color:var(--text2);margin-bottom:10px"></p>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:6px">방출 시 해당 선수는 엔트리에서 제거됩니다. 기존 기록은 유지됩니다.</p>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:10px">아래 문구를 정확히 입력하세요:</p>
+    <p style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:8px;text-align:center">해당 선수를 방출합니다.</p>
+    <input id="rp-confirm-input" placeholder="위 문구를 입력하세요" style="margin-bottom:12px"/>
+    <div style="display:flex;gap:8px">
+      <button class="btn" style="flex:1" onclick="hideM('modal-release-player')">취소</button>
+      <button class="btn btn-red" style="flex:1" onclick="confirmReleasePlayer()">방출 확정</button>
+    </div>
+  </div>
+</div>
+
+<!-- 방출 선수 관리 모달 -->
+<div id="modal-released-mgmt" class="moverlay hidden" onclick="if(event.target===this)hideM('modal-released-mgmt')">
+  <div class="mbox" style="max-width:480px">
+    <div class="mtitle">방출 선수 관리</div>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:12px">방출된 선수 목록입니다. 원소속팀 6명 이하일 경우 복귀 가능합니다.</p>
+    <div id="released-list" style="max-height:320px;overflow-y:auto;margin-bottom:12px"></div>
+    <button class="btn btn-block" onclick="hideM('modal-released-mgmt')">닫기</button>
   </div>
 </div>
 
@@ -2111,7 +2165,7 @@ function updateMatchStats(){
 
 function showView(v){
   ['view-setup','view-main','view-match','view-result','view-tb'].forEach(x=>document.getElementById(x).classList.toggle('hidden',x!==v));
-  ['modal-rules','modal-settings','modal-add','modal-player','modal-team-sel','modal-result-input','modal-broadcast'].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.add('hidden');});
+  ['modal-rules','modal-settings','modal-add','modal-player','modal-team-sel','modal-result-input','modal-broadcast','modal-edit-player','modal-transfer-player','modal-release-player','modal-released-mgmt'].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.add('hidden');});
 }
 function showM(id){document.getElementById(id).classList.remove('hidden');}
 function hideM(id){document.getElementById(id).classList.add('hidden');}
@@ -3764,6 +3818,214 @@ function detailSpecial(){
   return '<div style="padding-bottom:12px">'+html+'</div>';
 }
 
+/* ── 선수 관리 서브탭 렌더 ─────────────────────────────── */
+function detailPMgmt(){
+  if(!S.players||!S.players.length){
+    return '<div class="card" style="padding:24px;text-align:center;color:var(--text3)">등록된 선수가 없습니다.</div>';
+  }
+  const TEAMS=[];
+  S.players.forEach(function(p){const t=p.team||'팀 없음';if(!TEAMS.includes(t))TEAMS.push(t);});
+  TEAMS.sort();
+
+  let html='<div class="card" style="overflow:hidden">';
+  html+='<div class="sec-label" style="margin-bottom:12px">선수 관리</div>';
+  html+='<p style="font-size:12px;color:var(--text3);margin-bottom:12px">정보 수정, 이적, 방출을 진행할 수 있습니다.</p>';
+
+  // 팀별 그룹화
+  TEAMS.forEach(function(tn){
+    const players=S.players.filter(function(p){return (p.team||'팀 없음')===tn;});
+    const tc=teamColor(tn)||{bg:'var(--bg3)',tx:'var(--text2)'};
+    html+='<div style="margin-bottom:14px">';
+    html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--line)">';
+    html+='<div class="t-ava" style="background:'+tc.bg+';color:'+tc.tx+';width:24px;height:24px;font-size:8px">'+tIni(tn)+'</div>';
+    html+='<span style="font-size:13px;font-weight:600;color:var(--text)">'+tn+'</span>';
+    html+='<span style="font-size:11px;color:var(--text3);margin-left:auto">'+players.length+'명</span>';
+    html+='</div>';
+    players.forEach(function(p){
+      html+='<div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,.05)">';
+      html+='<div style="flex:1;min-width:0">';
+      html+='<span style="font-weight:500;font-size:13px">'+p.name+'</span>';
+      html+='<span style="font-size:11px;color:var(--text3);margin-left:6px">'+((p.age||'')?p.age+'세':'')+'</span>';
+      html+='</div>';
+      html+='<div style="display:flex;gap:4px;flex-shrink:0">';
+      html+='<button class="btn btn-sm" style="padding:3px 8px;font-size:11px" onclick="openEditPlayer(\''+p.id+'\')">수정</button>';
+      html+='<button class="btn btn-sm" style="padding:3px 8px;font-size:11px;border-color:rgba(91,156,246,.4);color:var(--blue)" onclick="openTransferPlayer(\''+p.id+'\')">이적</button>';
+      html+='<button class="btn btn-sm" style="padding:3px 8px;font-size:11px;border-color:rgba(220,38,38,.4);color:var(--red)" onclick="openReleasePlayer(\''+p.id+'\')">방출</button>';
+      html+='</div>';
+      html+='</div>';
+    });
+    html+='</div>';
+  });
+  html+='</div>';
+  return html;
+}
+
+/* ── 선수 정보 수정 ──────────────────────────────────────── */
+var _editPlayerId=null;
+function openEditPlayer(pid){
+  var p=S.players.find(function(x){return x.id===pid;});
+  if(!p){alert('선수를 찾을 수 없습니다.');return;}
+  _editPlayerId=pid;
+  document.getElementById('ep-name').value=p.name||'';
+  document.getElementById('ep-age').value=p.age||'';
+  showM('modal-edit-player');
+}
+function confirmEditPlayer(){
+  var name=document.getElementById('ep-name').value.trim();
+  var age=document.getElementById('ep-age').value.trim();
+  if(!name){alert('이름을 입력하세요.');return;}
+  var p=S.players.find(function(x){return x.id===_editPlayerId;});
+  if(!p){alert('선수를 찾을 수 없습니다.');return;}
+  p.name=name;
+  if(age) p.age=age;
+  save();
+  hideM('modal-edit-player');
+  refreshAll();
+  // 선수 관리 탭 다시 렌더
+  var activeBtn=document.querySelector('#detail-subnav .sub-btn[data-sub="pmgmt"]');
+  if(activeBtn&&activeBtn.classList.contains('active')) detailGoto('pmgmt',activeBtn);
+}
+
+/* ── 선수 이적 ───────────────────────────────────────────── */
+var _transferPlayerId=null;
+function openTransferPlayer(pid){
+  var p=S.players.find(function(x){return x.id===pid;});
+  if(!p){alert('선수를 찾을 수 없습니다.');return;}
+
+  // 이적 가능 조건: 정규시즌 10경기 완료
+  var doneGames=(S.bracket||[]).filter(function(bg){
+    return bg.seeded&&bg.rounds.every(function(r){return r.matches.every(function(m){return m.done||(!m.p1id&&!m.p2id);});});
+  }).length;
+  if(doneGames<10){
+    alert('시즌 중에는 이적할 수 없습니다.\n(정규 시즌 10경기 완료 후 이적 가능)\n현재 완료된 경기: '+doneGames+'/10');
+    return;
+  }
+
+  _transferPlayerId=pid;
+  document.getElementById('tp-info').textContent=p.name+' ('+( p.team||'팀 없음')+') → 이적 대상 팀 선택';
+
+  // 팀 목록 구성 (자기 팀 제외, 7명 미만인 팀)
+  const TEAMS=[];
+  S.players.forEach(function(x){const t=x.team||'팀 없음';if(!TEAMS.includes(t))TEAMS.push(t);});
+
+  var listEl=document.getElementById('tp-team-list');
+  listEl.innerHTML='';
+  TEAMS.filter(function(t){return t!==(p.team||'팀 없음');}).forEach(function(tn){
+    var cnt=S.players.filter(function(x){return (x.team||'팀 없음')===tn;}).length;
+    var over=cnt>=7;
+    var tc=teamColor(tn)||{bg:'var(--bg3)',tx:'var(--text2)'};
+    var row=document.createElement('label');
+    row.style.cssText='display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);cursor:'+(over?'not-allowed':'pointer')+(over?';opacity:.5':'');
+    row.innerHTML='<input type="radio" name="tp-team" value="'+tn+'" '+(over?'disabled':'')+' style="accent-color:var(--accent)">'
+      +'<div class="t-ava" style="background:'+tc.bg+';color:'+tc.tx+';width:22px;height:22px;font-size:8px;flex-shrink:0">'+tIni(tn)+'</div>'
+      +'<span style="font-size:13px;flex:1">'+tn+'</span>'
+      +'<span style="font-size:11px;color:'+(over?'var(--red)':'var(--text3)')+'">'+cnt+'/7명'+(over?' (가득)':'')+'</span>';
+    listEl.appendChild(row);
+  });
+
+  showM('modal-transfer-player');
+}
+function confirmTransferPlayer(){
+  var sel=document.querySelector('#tp-team-list input[name="tp-team"]:checked');
+  if(!sel){alert('팀을 선택하세요.');return;}
+  var newTeam=sel.value;
+  var p=S.players.find(function(x){return x.id===_transferPlayerId;});
+  if(!p){alert('선수를 찾을 수 없습니다.');return;}
+  var cnt=S.players.filter(function(x){return (x.team||'팀 없음')===newTeam;}).length;
+  if(cnt>=7){alert('해당 팀은 이미 7명으로 가득 찼습니다.');return;}
+  var oldTeam=p.team;
+  p.team=newTeam;
+  // 이적 시 엔트리 해제
+  p.entry=false;
+  save();
+  hideM('modal-transfer-player');
+  refreshAll();
+  var activeBtn=document.querySelector('#detail-subnav .sub-btn[data-sub="pmgmt"]');
+  if(activeBtn&&activeBtn.classList.contains('active')) detailGoto('pmgmt',activeBtn);
+  alert(p.name+'님이 '+newTeam+'으로 이적했습니다.\n(엔트리는 재등록이 필요합니다.)');
+}
+
+/* ── 선수 방출 ───────────────────────────────────────────── */
+var _releasePlayerId=null;
+function openReleasePlayer(pid){
+  var p=S.players.find(function(x){return x.id===pid;});
+  if(!p){alert('선수를 찾을 수 없습니다.');return;}
+  _releasePlayerId=pid;
+  document.getElementById('rp-info').textContent=p.name+' ('+( p.team||'팀 없음')+')';
+  document.getElementById('rp-confirm-input').value='';
+  showM('modal-release-player');
+}
+function confirmReleasePlayer(){
+  var input=(document.getElementById('rp-confirm-input').value||'').trim();
+  if(input!=='해당 선수를 방출합니다.'){alert('확인 문구가 정확하지 않습니다.\n"해당 선수를 방출합니다." 를 정확히 입력하세요.');return;}
+  var idx=S.players.findIndex(function(x){return x.id===_releasePlayerId;});
+  if(idx<0){alert('선수를 찾을 수 없습니다.');return;}
+  var p=S.players[idx];
+  if(!S.released) S.released=[];
+  // 기록 보존, 방출 정보 저장
+  S.released.push(Object.assign({},p,{releasedAt:Date.now(),releasedFrom:CURRENT_SEASON}));
+  S.players.splice(idx,1);
+  save();
+  hideM('modal-release-player');
+  refreshAll();
+  var activeBtn=document.querySelector('#detail-subnav .sub-btn[data-sub="pmgmt"]');
+  if(activeBtn&&activeBtn.classList.contains('active')) detailGoto('pmgmt',activeBtn);
+  alert(p.name+'님이 방출되었습니다.\n(기존 기록은 통산 기록에 유지됩니다.)');
+}
+
+/* ── 방출 선수 관리 ──────────────────────────────────────── */
+function openReleasedMgmt(){
+  renderReleasedList();
+  showM('modal-released-mgmt');
+}
+function renderReleasedList(){
+  var el=document.getElementById('released-list');
+  if(!el) return;
+  if(!S.released||!S.released.length){
+    el.innerHTML='<div style="text-align:center;color:var(--text3);padding:24px;font-size:13px">방출된 선수가 없습니다.</div>';
+    return;
+  }
+  var html='';
+  S.released.forEach(function(p,idx){
+    var teamPlayers=S.players.filter(function(x){return x.team===p.team;});
+    var canRestore=teamPlayers.length<7;
+    var relDate=p.releasedAt?new Date(p.releasedAt).toLocaleDateString('ko-KR'):'';
+    var tc=teamColor(p.team||'팀 없음')||{bg:'var(--bg3)',tx:'var(--text2)'};
+    html+='<div style="display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid var(--line)">';
+    html+='<div class="t-ava" style="background:'+tc.bg+';color:'+tc.tx+';width:28px;height:28px;font-size:9px;flex-shrink:0">'+ini(p.name||'?')+'</div>';
+    html+='<div style="flex:1;min-width:0">';
+    html+='<div style="font-weight:500;font-size:13px">'+p.name+'</div>';
+    html+='<div style="font-size:11px;color:var(--text3)">'+( p.team||'팀 없음')+(relDate?' · 방출일: '+relDate:'')+'</div>';
+    html+='</div>';
+    if(canRestore){
+      html+='<button class="btn btn-sm" style="padding:3px 8px;font-size:11px;border-color:rgba(76,175,125,.4);color:var(--green);flex-shrink:0" onclick="restorePlayer('+idx+')">복귀</button>';
+    } else {
+      html+='<span style="font-size:11px;color:var(--red);flex-shrink:0">복귀 불가<br><span style="font-size:10px">(팀 7명)</span></span>';
+    }
+    html+='</div>';
+  });
+  el.innerHTML=html;
+}
+function restorePlayer(idx){
+  if(!S.released||idx<0||idx>=S.released.length){alert('잘못된 요청입니다.');return;}
+  var p=S.released[idx];
+  var teamPlayers=S.players.filter(function(x){return x.team===p.team;});
+  if(teamPlayers.length>=7){
+    alert('원소속팀('+p.team+')에 이미 7명이 있어 복귀할 수 없습니다.\n현재 '+p.team+': '+teamPlayers.length+'명');
+    return;
+  }
+  var restored=Object.assign({},p);
+  delete restored.releasedAt;
+  delete restored.releasedFrom;
+  restored.entry=false; // 복귀 시 엔트리 해제 (수동으로 등록 필요)
+  S.players.push(restored);
+  S.released.splice(idx,1);
+  save();
+  renderReleasedList();
+  refreshAll();
+  alert(restored.name+'님이 복귀했습니다.\n(엔트리는 별도로 등록이 필요합니다.)');
+}
+
 // CURRENT_SEASON 동기화 함수 (Firebase applyRemote에서 호출)
 window._setCURRENT_SEASON = function(key){
   if(key) CURRENT_SEASON = key;
@@ -5266,30 +5528,42 @@ function renderPlayers(){
   const el=document.getElementById('players-body');
   if(!el) return;
   if(!S.players.length){el.innerHTML='<p style="color:var(--text3)">없음</p>';return;}
-  // 1경기 이상 출전 선수만 표시
-  const visible=S.players.filter((p,i)=>{
-    const s=pStats(p.id);
-    return (s.wins+s.draws+s.losses)>=1;
+
+  // 팀별 그룹화
+  const TEAMS=[];
+  S.players.forEach(p=>{const t=p.team||'팀 없음';if(!TEAMS.includes(t))TEAMS.push(t);});
+  TEAMS.sort();
+
+  let html='';
+  TEAMS.forEach(tn=>{
+    const players=S.players.filter(p=>(p.team||'팀 없음')===tn);
+    const tc=teamColor(tn)||{bg:'var(--bg3)',tx:'var(--text2)'};
+    html+=`<div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line)">
+        <div class="t-ava" style="background:${tc.bg};color:${tc.tx};width:26px;height:26px;font-size:8px">${tIni(tn)}</div>
+        <span style="font-size:14px;font-weight:600;color:var(--text)">${tn}</span>
+        <span style="font-size:11px;color:var(--text3);margin-left:auto">${players.length}명</span>
+      </div>`;
+    players.forEach(p=>{
+      const i=S.players.indexOf(p);
+      const c=avc(i);
+      const s=pStats(p.id);
+      html+=`<div style="display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid rgba(255,255,255,.05)">
+        <div class="avatar" style="background:${c.bg};color:${c.tx};width:28px;height:28px;font-size:10px;cursor:pointer;flex-shrink:0" onclick="openPModal('${p.id}')">${ini(p.name,2)}</div>
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="openPModal('${p.id}')">
+          <div style="font-weight:500;font-size:13px">${p.name}${p.age?'<span style="font-size:11px;color:var(--text3);margin-left:5px">'+p.age+'세</span>':''}</div>
+          <div style="font-size:11px;color:var(--text3)">${fmt(s.pts)}pt · ${s.wins}승 ${s.draws}무 ${s.losses}패</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button class="btn btn-sm" style="padding:3px 7px;font-size:11px" onclick="openEditPlayer('${p.id}')">수정</button>
+          <button class="btn btn-sm" style="padding:3px 7px;font-size:11px;border-color:rgba(91,156,246,.4);color:var(--blue)" onclick="openTransferPlayer('${p.id}')">이적</button>
+          <button class="btn btn-sm" style="padding:3px 7px;font-size:11px;border-color:rgba(220,38,38,.4);color:var(--red)" onclick="openReleasePlayer('${p.id}')">방출</button>
+        </div>
+      </div>`;
+    });
+    html+='</div>';
   });
-  if(!visible.length){
-    el.innerHTML='<p style="color:var(--text3);font-size:13px">아직 경기에 출전한 선수가 없습니다.</p>';
-    return;
-  }
-  el.innerHTML=visible.map((p)=>{
-    const i=S.players.indexOf(p);
-    const c=avc(i); const s=pStats(p.id);
-    return`<div class="prow">
-      <div class="avatar" style="background:${c.bg};color:${c.tx};cursor:pointer" onclick="openPModal('${p.id}')">${ini(p.name,2)}</div>
-      <div class="pinfo" onclick="openPModal('${p.id}')">
-        <b>${p.name}</b>
-        <span>${p.team||''} ${p.age?'· '+p.age+'세':''}</span>
-      </div>
-      <div class="pstats">
-        <span>${fmt(s.pts)}pt</span>
-        <span>${s.wins}승 ${s.draws}무 ${s.losses}패</span>
-      </div>
-    </div>`;
-  }).join('');
+  el.innerHTML=html;
 }
 
 
