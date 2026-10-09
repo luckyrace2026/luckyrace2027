@@ -1367,14 +1367,15 @@ function calcSeasonRanksFromData(sd){
     const validFinal = finalRound ? finalRound.matches.filter(m => m.p1id || m.p2id) : [];
     const finalDone = validFinal.length > 0 && validFinal.every(m => m.done);
 
-    const roundsToProcess = ['예선전','16강전','8강전','준결승']; // 전체/부분 완료 모두 처리
+    const roundsToProcess = ['예선전','16강전','8강전','준결승']; // 전체 완료된 라운드만 집계
 
     roundsToProcess.forEach(rt => {
       const round = bg.rounds.find(r => r.roundType === rt);
       if(!round) return;
       const validMatches = round.matches.filter(m => m.p1id || m.p2id);
-      const doneMatches = validMatches.filter(m => m.done);
-      if(!doneMatches.length) return;
+      // 라운드 전체 완료 시에만 승점 집계 (부분 완료는 미반영)
+      if(!validMatches.length || !validMatches.every(m => m.done)) return;
+      const doneMatches = validMatches;
 
       const baseRank = {'예선전':17,'16강전':9,'8강전':5,'준결승':3,'결승':2}[rt];
       if(baseRank == null) return;
@@ -5179,8 +5180,8 @@ const ROUND_BASE_RANK = {
 };
 
 // ─── 라운드 종료 시 탈락자 순위 배정 ───
-// 라운드 전체 완료 시: 원점수 기준 정렬 후 순위 배정
-// 라운드 부분 완료 시: 완료된 경기의 탈락자만 처리 (baseRank부터 순차 배정, 임시)
+// 라운드 전체 완료 시에만 원점수 기준 정렬 후 순위 배정
+// 라운드 부분 완료 시: 승점 배정 없음 (환수 처리는 repairBracket에서 자동 처리)
 function applyRoundPts(bg, roundType){
   const round = bg.rounds.find(r => r.roundType === roundType);
   if(!round) return;
@@ -5189,9 +5190,9 @@ function applyRoundPts(bg, roundType){
   const baseRank = ROUND_BASE_RANK[roundType];
   if(baseRank == null) return;
 
-  // 완료된 경기의 탈락자만 수집 (전체/부분 완료 모두 처리)
-  const doneMatches = validMatches.filter(m => m.done);
-  if(!doneMatches.length) return;
+  // 라운드 전체 완료 여부 확인 — 일부 경기만 끝난 경우 승점 배정 금지
+  if(!validMatches.every(m => m.done)) return;
+  const doneMatches = validMatches; // 전체 완료 확인 후 = validMatches
 
   // 탈락자 수집 (원점수 기준)
   const losers = [];
@@ -5220,8 +5221,7 @@ function applyRoundPts(bg, roundType){
   });
   if(!losers.length) return;
 
-  // 원점수 내림차순 정렬 후 순위 배정
-  // 전체 완료 시: 정확한 순위 / 부분 완료 시: 잠정 순위(baseRank부터)
+  // 원점수 내림차순 정렬 후 순위 배정 (라운드 전체 완료 후에만 도달)
   losers.sort((a, b) => b.rawScore - a.rawScore);
   let nextRank = baseRank;
   losers.forEach((l, i) => {
