@@ -3892,12 +3892,14 @@ function openTransferPlayer(pid){
   var p=S.players.find(function(x){return x.id===pid;});
   if(!p){alert('선수를 찾을 수 없습니다.');return;}
 
-  // 이적 가능 조건: 정규시즌 10경기 완료
+  // 이적 가능 조건: 1경기 대진 미편성(시즌 전) 또는 정규시즌 10경기 완료(시즌 후)
+  var seededCount=(S.bracket||[]).filter(function(bg){return bg.seeded;}).length;
   var doneGames=(S.bracket||[]).filter(function(bg){
     return bg.seeded&&bg.rounds.every(function(r){return r.matches.every(function(m){return m.done||(!m.p1id&&!m.p2id);});});
   }).length;
-  if(doneGames<10){
-    alert('시즌 중에는 이적할 수 없습니다.\n(정규 시즌 10경기 완료 후 이적 가능)\n현재 완료된 경기: '+doneGames+'/10');
+  var inSeason=(seededCount>0&&doneGames<10);
+  if(inSeason){
+    alert('시즌 중에는 이적할 수 없습니다.\n(정규 시즌 10경기 완료 후 또는 시즌 시작 전에 이적 가능)\n현재 완료된 경기: '+doneGames+'/10');
     return;
   }
 
