@@ -907,6 +907,25 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
       <p style="margin-bottom:4px">• 동점 시 공동 순위 부여.</p>
       <p>• 누적/평균 점수는 시드 보너스 제외 원점수 기준.</p>
 
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin:12px 0 6px">매치 오너(Match Owner) 경기</div>
+      <p style="margin-bottom:6px">• <b style="color:var(--text)">이전 시즌 순위</b>를 기준으로 지정된 두 팀이 <b style="color:var(--text)">4명 전원 출전</b>하는 특별 경기.</p>
+      <div style="background:var(--bg3);border-radius:var(--r);padding:10px 12px;font-size:11px;line-height:2;margin-bottom:6px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
+          <div><span style="color:var(--accent)">1경기</span> = 이전 시즌 <b style="color:var(--text)">1위 ↔ 10위</b></div>
+          <div><span style="color:var(--text3)">6경기</span> = 이전 시즌 <b style="color:var(--text)">1위 ↔ 10위</b></div>
+          <div><span style="color:var(--accent)">2경기</span> = 이전 시즌 <b style="color:var(--text)">2위 ↔ 9위</b></div>
+          <div><span style="color:var(--text3)">7경기</span> = 이전 시즌 <b style="color:var(--text)">2위 ↔ 9위</b></div>
+          <div><span style="color:var(--accent)">3경기</span> = 이전 시즌 <b style="color:var(--text)">3위 ↔ 8위</b></div>
+          <div><span style="color:var(--text3)">8경기</span> = 이전 시즌 <b style="color:var(--text)">3위 ↔ 8위</b></div>
+          <div><span style="color:var(--accent)">4경기</span> = 이전 시즌 <b style="color:var(--text)">4위 ↔ 7위</b></div>
+          <div><span style="color:var(--text3)">9경기</span> = 이전 시즌 <b style="color:var(--text)">4위 ↔ 7위</b></div>
+          <div><span style="color:var(--accent)">5경기</span> = 이전 시즌 <b style="color:var(--text)">5위 ↔ 6위</b></div>
+          <div><span style="color:var(--text3)">10경기</span> = 이전 시즌 <b style="color:var(--text)">5위 ↔ 6위</b></div>
+        </div>
+      </div>
+      <p style="margin-bottom:4px;font-size:11px;color:var(--text3)">* 매치 오너 팀 선수는 라인업 지정 없이 전원 자동 출전. 나머지 팀은 3명 선택.</p>
+      <p style="margin-bottom:12px;font-size:11px;color:var(--text3)">* 이전 시즌이 없는 경우(첫 시즌) 매치 오너 경기 규칙은 적용되지 않음.</p>
+
       <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin:12px 0 6px">점수 가치도 <span style="color:var(--text3);font-size:9px">(2028시즌~)</span></div>
       <p style="margin-bottom:4px">• <b style="color:var(--text)">2028시즌부터</b> 도입. 경기 중 <b style="color:var(--text)">애드(Add) 액션마다 실시간</b> 평가 (경기당 최대 15회/선수).</p>
       <p style="margin-bottom:4px">• <b style="color:var(--text)">a</b> = 상대 현재 점수, <b style="color:var(--text)">b</b> = 내 현재 점수, <b style="color:var(--text)">x</b> = 이번 뽑은 점수</p>
@@ -2334,6 +2353,10 @@ function detailGoto(sub, btn){
     el.innerHTML=html;
     dtBindSortEvents();
     dtRenderChips(sub);
+    // 기간별 순위 탭은 HTML 삽입 후 초기 결과 자동 렌더
+    if(sub==='period'){
+      setTimeout(function(){renderPeriodRank();},0);
+    }
   }catch(e){el.innerHTML='<div style="color:var(--red);padding:20px">[오류] '+e.message+'</div>';console.error(e);}
 }
 
@@ -2534,9 +2557,13 @@ function detailFirstLast(){
 
 /* ── 4. 기간별 순위표 ─────────────────────────────────── */
 function detailPeriod(){
-  const gns=[...new Set(S.matches.filter(m=>m.done).map(m=>parseInt(m.gameNum)))].sort((a,b)=>a-b);
+  // NaN 제거: PO/TEAM_PO gameNum은 parseInt하면 NaN이므로 isNaN으로 걸러냄
+  const gns=[...new Set(
+    S.matches.filter(m=>m.done).map(m=>parseInt(m.gameNum)).filter(n=>!isNaN(n))
+  )].sort((a,b)=>a-b);
   if(!gns.length) return '<div style="padding:20px;color:var(--text3)">경기 기록이 없습니다.</div>';
-  const max=Math.max(...gns);
+  const max=gns[gns.length-1]; // Math.max 대신 정렬된 배열 마지막값 사용(NaN 안전)
+  const initTab=_periodTab||'player';
   return `<div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px;margin-bottom:12px">
     <div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;font-family:'DM Mono',monospace;margin-bottom:12px">기간 설정</div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
@@ -2551,44 +2578,77 @@ function detailPeriod(){
     </div>
     <div style="display:flex;gap:6px;margin-bottom:10px">
       <button id="period-tab-player" onclick="switchPeriodTab('player')"
-        style="padding:5px 14px;background:transparent;border:1px solid var(--accent);border-radius:var(--r);color:var(--accent);font-size:12px;cursor:pointer">선수별</button>
+        style="padding:5px 14px;background:transparent;border-radius:var(--r);font-size:12px;cursor:pointer;border:1px solid ${initTab==='player'?'var(--accent)':'var(--line2)'};color:${initTab==='player'?'var(--accent)':'var(--text3)'}">선수별</button>
       <button id="period-tab-team" onclick="switchPeriodTab('team')"
-        style="padding:5px 14px;background:transparent;border:1px solid var(--line2);border-radius:var(--r);color:var(--text3);font-size:12px;cursor:pointer">팀별</button>
+        style="padding:5px 14px;background:transparent;border-radius:var(--r);font-size:12px;cursor:pointer;border:1px solid ${initTab==='team'?'var(--accent)':'var(--line2)'};color:${initTab==='team'?'var(--accent)':'var(--text3)'}">팀별</button>
     </div>
     <div id="period-rank-result"></div>
   </div>`;
 }
 
-let _periodTab='player';
+var _periodTab='player';
 function switchPeriodTab(which){
   _periodTab=which;
-  const active='border:1px solid var(--accent);color:var(--accent)';
-  const inactive='border:1px solid var(--line2);color:var(--text3)';
   const pb=document.getElementById('period-tab-player');
   const tb=document.getElementById('period-tab-team');
-  if(pb) pb.style.cssText=pb.style.cssText.replace(/border:[^;]+;color:[^;]+/,which==='player'?active:inactive);
-  if(tb) tb.style.cssText=tb.style.cssText.replace(/border:[^;]+;color:[^;]+/,which==='team'?active:inactive);
+  if(pb){
+    pb.style.borderColor=which==='player'?'var(--accent)':'var(--line2)';
+    pb.style.color=which==='player'?'var(--accent)':'var(--text3)';
+  }
+  if(tb){
+    tb.style.borderColor=which==='team'?'var(--accent)':'var(--line2)';
+    tb.style.color=which==='team'?'var(--accent)':'var(--text3)';
+  }
   renderPeriodRank();
 }
 
 function renderPeriodRank(){
-  const from=parseInt(document.getElementById('period-from')?.value)||1;
-  const to=parseInt(document.getElementById('period-to')?.value)||from;
+  const fromEl=document.getElementById('period-from');
+  const toEl=document.getElementById('period-to');
+  if(!fromEl||!toEl){
+    // UI가 아직 렌더링되지 않은 경우 — detailPeriod() HTML이 DOM에 들어가도록 잠시 후 재시도
+    setTimeout(function(){
+      const el2=document.getElementById('period-rank-result');
+      if(el2){
+        const f2=parseInt(document.getElementById('period-from')?.value)||1;
+        const t2=parseInt(document.getElementById('period-to')?.value)||f2;
+        if(_periodTab==='team') renderPeriodTeam(f2,t2,el2);
+        else renderPeriodPlayer(f2,t2,el2);
+      }
+    },50);
+    return;
+  }
+  const from=parseInt(fromEl.value)||1;
+  const to=Math.max(from, parseInt(toEl.value)||from);
   const el=document.getElementById('period-rank-result'); if(!el)return;
   if(_periodTab==='team') renderPeriodTeam(from,to,el);
   else renderPeriodPlayer(from,to,el);
 }
 
 function renderPeriodPlayer(from,to,el){
+  if(!S||!S.players||!S.matches){el.innerHTML='<div style="color:var(--text3);padding:12px">데이터를 불러오는 중입니다.</div>';return;}
   const rows=S.players.map(p=>{
-    const done=S.matches.filter(m=>m.done&&(m.p1id===p.id||m.p2id===p.id)
+    const id=p.id;
+    const done=S.matches.filter(m=>m.done&&(m.p1id===id||m.p2id===id)
       &&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'
-      &&parseInt(m.gameNum)>=from&&parseInt(m.gameNum)<=to);
-    let wins=0,draws=0,losses=0,cumScore=0,sPts=0;const seenG=new Set();
+      &&!isNaN(parseInt(m.gameNum))&&parseInt(m.gameNum)>=from&&parseInt(m.gameNum)<=to);
+    let wins=0,draws=0,losses=0,cumScore=0,sPts=0;
     done.forEach(m=>{
-      const isP1=m.p1id===p.id;cumScore+=isP1?m.p1score:m.p2score;
-      if(m.isDraw)draws++;else if(m.winnerId===p.id)wins++;else losses++;
-      if(!seenG.has(m.gameNum)){const rk=isP1?m.p1spts:m.p2spts;if(rk!=null){sPts+=SPTS_BY_RANK[rk]||0;seenG.add(m.gameNum);}}
+      const isP1=m.p1id===id;
+      cumScore+=isP1?m.p1score:m.p2score;
+      if(m.isDraw)draws++;else if(m.winnerId===id)wins++;else losses++;
+    });
+    // 시즌 포인트: seasonRanks 우선, 폴백은 p1spts/p2spts (pStats와 동일 방식)
+    const seenGns=new Set(done.map(m=>m.gameNum));
+    seenGns.forEach(gn=>{
+      let rank=null;
+      if(S.seasonRanks&&S.seasonRanks[gn]&&S.seasonRanks[gn][id]!=null){
+        rank=S.seasonRanks[gn][id];
+      } else {
+        const gm=done.find(m=>m.gameNum===gn&&((m.p1id===id&&m.p1spts!=null)||(m.p2id===id&&m.p2spts!=null)));
+        if(gm) rank=gm.p1id===id?gm.p1spts:gm.p2spts;
+      }
+      if(rank!=null) sPts+=SPTS_BY_RANK[rank]||0;
     });
     const g=done.length;
     const pts=parseFloat((sPts+wins*0.5+draws*0.25).toFixed(2));
@@ -2626,21 +2686,36 @@ function renderPeriodPlayer(from,to,el){
 }
 
 function renderPeriodTeam(from,to,el){
+  if(!S||!S.players||!S.matches){el.innerHTML='<div style="color:var(--text3);padding:12px">데이터를 불러오는 중입니다.</div>';return;}
   const teamNames=[...new Set(S.players.map(p=>p.team||'팀 없음'))];
   const rows=teamNames.map(tn=>{
     const members=S.players.filter(p=>(p.team||'팀 없음')===tn);
-    const done=S.matches.filter(m=>m.done&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'
-      &&parseInt(m.gameNum)>=from&&parseInt(m.gameNum)<=to
-      &&(members.some(p=>p.id===m.p1id)||members.some(p=>p.id===m.p2id)));
-    let wins=0,draws=0,losses=0,cumScore=0,sPts=0;const seenMap={};
-    done.forEach(m=>{
-      const myMember=members.find(p=>p.id===m.p1id||p.id===m.p2id);if(!myMember)return;
-      const isP1=m.p1id===myMember.id;
-      cumScore+=isP1?m.p1score:m.p2score;
-      if(m.isDraw)draws++;else if(m.winnerId===myMember.id)wins++;else losses++;
-      if(!seenMap[m.gameNum]){const rk=isP1?m.p1spts:m.p2spts;if(rk!=null){sPts+=SPTS_BY_RANK[rk]||0;seenMap[m.gameNum]=true;}}
+    // 팀 승점 = 팀원 각자의 기간 내 pts 합산 (pStats와 동일한 seasonRanks 우선 방식)
+    let wins=0,draws=0,losses=0,cumScore=0,sPts=0,g=0;
+    members.forEach(p=>{
+      const id=p.id;
+      const pdone=S.matches.filter(m=>m.done&&(m.p1id===id||m.p2id===id)
+        &&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO'
+        &&!isNaN(parseInt(m.gameNum))&&parseInt(m.gameNum)>=from&&parseInt(m.gameNum)<=to);
+      pdone.forEach(m=>{
+        const isP1=m.p1id===id;
+        cumScore+=isP1?m.p1score:m.p2score;
+        if(m.isDraw)draws++;else if(m.winnerId===id)wins++;else losses++;
+      });
+      g+=pdone.length;
+      // 시즌 포인트: seasonRanks 우선, 폴백은 p1spts/p2spts (pStats와 동일 방식)
+      const seenGns=new Set(pdone.map(m=>m.gameNum));
+      seenGns.forEach(gn=>{
+        let rank=null;
+        if(S.seasonRanks&&S.seasonRanks[gn]&&S.seasonRanks[gn][id]!=null){
+          rank=S.seasonRanks[gn][id];
+        } else {
+          const gm=pdone.find(m=>m.gameNum===gn&&((m.p1id===id&&m.p1spts!=null)||(m.p2id===id&&m.p2spts!=null)));
+          if(gm) rank=gm.p1id===id?gm.p1spts:gm.p2spts;
+        }
+        if(rank!=null) sPts+=SPTS_BY_RANK[rank]||0;
+      });
     });
-    const g=done.length;
     const pts=parseFloat((sPts+wins*0.5+draws*0.25).toFixed(2));
     return{name:tn,pts,avg:g>0?Math.round(cumScore/g):0,wins,draws,losses,g,members:members.length};
   }).sort((a,b)=>b.pts-a.pts);
@@ -4253,6 +4328,65 @@ function renderBracket(){
   }
 }
 
+// 이전 시즌 pts 기준 팀 순위 배열 반환 (내림차순, 팀명 배열)
+// matchOwner 경기 규칙: 1,6경기=1↔10위 / 2,7경기=2↔9위 / 3,8경기=3↔8위 / 4,9경기=4↔7위 / 5,10경기=5↔6위
+function getPrevSeasonTeamRank(){
+  var allSeasons=getAllSeasons();
+  var curKey=CURRENT_SEASON;
+  var seasonKeys=Object.keys(allSeasons).sort();
+  // 현재 시즌 바로 이전 시즌 키 찾기
+  var prevKey=null;
+  for(var i=seasonKeys.length-1;i>=0;i--){
+    if(seasonKeys[i]<curKey){prevKey=seasonKeys[i];break;}
+  }
+  if(!prevKey) return null; // 이전 시즌 없음
+  var sd=allSeasons[prevKey];
+  if(!sd||!sd.players||!sd.matches) return null;
+  // 팀별 pts 합산 (정규시즌, PO 제외)
+  var teamPts={};
+  var teamOrder=[]; // 등장 순서 보존
+  sd.players.forEach(function(p){
+    var t=p.team||'팀 없음';
+    if(teamOrder.indexOf(t)<0)teamOrder.push(t);
+    teamPts[t]=0;
+  });
+  // 각 선수 pts 계산
+  sd.players.forEach(function(p){
+    var t=p.team||'팀 없음';
+    var done=sd.matches.filter(function(m){
+      return m.done&&(m.p1id===p.id||m.p2id===p.id)&&m.gameNum!=='PO'&&m.gameNum!=='TEAM_PO';
+    });
+    var wins=0,draws=0,sPts=0;var seenG={};
+    done.forEach(function(m){
+      var isP1=m.p1id===p.id;
+      if(m.isDraw)draws++;else if(m.winnerId===p.id)wins++;
+      if(!seenG[m.gameNum]){var rk=isP1?m.p1spts:m.p2spts;if(rk!=null){sPts+=(SPTS_BY_RANK&&SPTS_BY_RANK[rk])||0;seenG[m.gameNum]=true;}}
+    });
+    var pts=parseFloat((sPts+wins*0.5+draws*0.25).toFixed(2));
+    teamPts[t]=(teamPts[t]||0)+pts;
+  });
+  // pts 내림차순 정렬 (동점 시 등장 순서 유지)
+  var sorted=teamOrder.slice().sort(function(a,b){
+    var diff=(teamPts[b]||0)-(teamPts[a]||0);
+    if(diff!==0)return diff;
+    return teamOrder.indexOf(a)-teamOrder.indexOf(b);
+  });
+  return sorted; // [1위팀, 2위팀, ..., 10위팀]
+}
+
+// gameNum에 해당하는 매치 오너(4명 전원 출전) 팀 2팀 반환
+// 이전 시즌 순위 없으면 null 반환
+function getMatchOwnerTeams(gameNum){
+  var pairMap={1:[0,9],2:[1,8],3:[2,7],4:[3,6],5:[4,5],6:[0,9],7:[1,8],8:[2,7],9:[3,6],10:[4,5]};
+  var idxs=pairMap[gameNum];
+  if(!idxs)return null;
+  var ranked=getPrevSeasonTeamRank();
+  if(!ranked||ranked.length<10)return null;
+  var t1=ranked[idxs[0]],t2=ranked[idxs[1]];
+  if(!t1||!t2)return null;
+  return [t1,t2];
+}
+
 function openLineupFor(bg){
   if(!bg)return;
   window._lineupBg=bg;
@@ -4262,14 +4396,11 @@ function openLineupFor(bg){
   if(old)old.parentNode.removeChild(old);
 
   var gameNum=parseInt(bg.gameNum);
-  var fourMap={1:[0,1],2:[2,3],3:[4,5],4:[6,7],5:[8,9],6:[0,1],7:[2,3],8:[4,5],9:[6,7],10:[8,9]};
-  var fourIdxs=fourMap[gameNum]||[];
+  // 이전 시즌 순위 기반 매치 오너 팀 결정
+  var moTeams=getMatchOwnerTeams(gameNum);
+  var fourTeams=moTeams||[];
   var allTeams=[];
-  S.players.forEach(function(p){
-    var t=p.team||'팀 없음';
-    if(allTeams.indexOf(t)<0)allTeams.push(t);
-  });
-  var fourTeams=fourIdxs.map(function(i){return allTeams[i];}).filter(Boolean);
+  S.players.forEach(function(p){var t=p.team||'팀 없음';if(allTeams.indexOf(t)<0)allTeams.push(t);});
   var prev=bg.lineup||{};
 
   // ── 오버레이 (createElement) ──────────────────────────
@@ -4301,13 +4432,21 @@ function openLineupFor(bg){
   // ── 설명 ──────────────────────────────────────────────
   if(fourTeams.length){
     var fourNote=document.createElement('p');
-    fourNote.style.cssText='font-size:12px;color:#c8f000;margin:0 0 6px';
-    fourNote.textContent='4명 전원 출전: '+fourTeams.join(', ');
+    fourNote.style.cssText='font-size:12px;color:#c8f000;margin:0 0 4px';
+    fourNote.textContent='⭐ 매치 오너 경기 — 4명 전원 출전: '+fourTeams.join(', ');
     box.appendChild(fourNote);
+    var moDesc=document.createElement('p');
+    moDesc.style.cssText='font-size:11px;color:#999;margin:0 0 6px';
+    // 이전 시즌 순위 표시
+    var ranked=getPrevSeasonTeamRank();
+    var r1idx=ranked?(ranked.indexOf(fourTeams[0])+1):0;
+    var r2idx=ranked?(ranked.indexOf(fourTeams[1])+1):0;
+    moDesc.textContent='이전 시즌 '+r1idx+'위('+fourTeams[0]+') vs '+r2idx+'위('+fourTeams[1]+') 매치 오너 경기입니다.';
+    box.appendChild(moDesc);
   }
   var note=document.createElement('p');
   note.style.cssText='font-size:11px;color:#888;margin:0 0 14px';
-  note.textContent='각 팀에서 3명 선택. 3명 미만 시 나머지는 무작위 자동 배정.';
+  note.textContent=fourTeams.length?'매치 오너 팀은 4명 전원 출전. 일반 팀은 3명 선택 (미만 시 무작위 자동 배정).':'각 팀에서 3명 선택. 3명 미만 시 나머지는 무작위 자동 배정.';
   box.appendChild(note);
 
   // ── 팀별 선수 목록 ────────────────────────────────────
@@ -4414,11 +4553,10 @@ function confirmLineupPopup(){
   if(!bg){alert('[오류] _lineupBg가 없습니다');closeLineupPopup();return;}
   
   var gameNum=parseInt(bg.gameNum);
-  var fourMap={1:[0,1],2:[2,3],3:[4,5],4:[6,7],5:[8,9],6:[0,1],7:[2,3],8:[4,5],9:[6,7],10:[8,9]};
-  var fourIdxs=fourMap[gameNum]||[];
+  var moTeams=getMatchOwnerTeams(gameNum);
+  var fourTeams=moTeams||[];
   var allTeams=[];
   S.players.forEach(function(p){var t=p.team||'팀 없음';if(allTeams.indexOf(t)<0)allTeams.push(t);});
-  var fourTeams=fourIdxs.map(function(i){return allTeams[i];}).filter(Boolean);
 
   var lineupMap={};
   var popup=document.getElementById('lineup-popup');
