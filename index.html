@@ -925,7 +925,7 @@ label{display:block;font-size:11px;color:var(--text3);margin-bottom:5px;letter-s
         </div>
       </div>
       <p style="margin-bottom:4px;font-size:11px;color:var(--text3)">* 매치 오너 팀 선수는 라인업 지정 없이 전원 자동 출전. 나머지 팀은 3명 선택.</p>
-      <p style="margin-bottom:12px;font-size:11px;color:var(--text3)">* 이전 시즌이 없는 경우(첫 시즌) 매치 오너 경기 규칙은 적용되지 않음.</p>
+      <p style="margin-bottom:12px;font-size:11px;color:var(--text3)">* 2027~2031 시즌: 고정 매치 오너 (1,6경기=ITA·삼성 / 2,7경기=KIA·LG / 3,8경기=현대·KT / 4,9경기=카카오·SSG / 5,10경기=한화·롯데). 2032 시즌부터 이전 시즌 팀 순위 기반으로 전환.</p>
 
       <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin:12px 0 6px">점수 가치도 <span style="color:var(--text3);font-size:9px">(2028시즌~)</span></div>
       <p style="margin-bottom:4px">• <b style="color:var(--text)">2028시즌부터</b> 도입. 경기 중 <b style="color:var(--text)">애드(Add) 액션마다 실시간</b> 평가 (경기당 최대 15회/선수).</p>
@@ -4382,7 +4382,7 @@ function renderBracket(){
   }
 
   // 현재 대진 경기 배너 렌더링
-  renderCurrentMatchBanner();
+  try{renderCurrentMatchBanner();}catch(e){console.error('renderCurrentMatchBanner error',e);}
 }
 
 function renderCurrentMatchBanner(){
@@ -4390,17 +4390,18 @@ function renderCurrentMatchBanner(){
   if(!bannerEl)return;
   if(!S||!S.bracket||!S.bracket.length){bannerEl.innerHTML='';return;}
 
-  // "다음 경기 시작 대기" 매치 찾기: isNextM이 true인 (p1id,p2id 있고 미완료) 첫 번째 매치
+  // "다음 경기 시작 대기" 매치 찾기: 첫 번째 미완료 seeded 그룹의 첫 미완료 매치
   let nextMatch=null, nextGi=-1, nextGameNum='', nextRoundType='', nextMatchSeq=0;
   outer: for(let gi=0;gi<S.bracket.length;gi++){
     const bg=S.bracket[gi];
     if(!bg.seeded)continue;
+    if(isGDone(bg))continue; // 완료된 그룹 건너뜀
     for(let ri=0;ri<bg.rounds.length;ri++){
       let seqCount=0; // 라운드 내 순번 (라운드 바뀌면 1부터 재시작)
       for(let mi=0;mi<bg.rounds[ri].matches.length;mi++){
         const m=bg.rounds[ri].matches[mi];
         if(m.p1id&&m.p2id) seqCount++;
-        if(!m.done&&m.p1id&&m.p2id&&isNextM(m,gi)){
+        if(!m.done&&m.p1id&&m.p2id){
           nextMatch=m; nextGi=gi; nextGameNum=bg.gameNum||'';
           nextRoundType=bg.rounds[ri].roundType||''; nextMatchSeq=seqCount;
           break outer;
@@ -4480,8 +4481,21 @@ function getPrevSeasonTeamRank(){
 }
 
 // gameNum에 해당하는 매치 오너(4명 전원 출전) 팀 2팀 반환
-// 이전 시즌 순위 없으면 null 반환
+// 2027~2031 시즌: 고정 매치 오너 / 2032 시즌~: 이전 시즌 순위 기반
 function getMatchOwnerTeams(gameNum){
+  var cur=parseInt(CURRENT_SEASON);
+  if(cur<2032){
+    // 2031 시즌까지 고정 매치 오너
+    var fixedMap={
+      1:['ITA','삼성'],  6:['ITA','삼성'],
+      2:['KIA','LG'],    7:['KIA','LG'],
+      3:['현대','KT'],   8:['현대','KT'],
+      4:['카카오','SSG'],9:['카카오','SSG'],
+      5:['한화','롯데'], 10:['한화','롯데']
+    };
+    return fixedMap[gameNum]||null;
+  }
+  // 2032 시즌부터: 이전 시즌 순위 기반
   var pairMap={1:[0,9],2:[1,8],3:[2,7],4:[3,6],5:[4,5],6:[0,9],7:[1,8],8:[2,7],9:[3,6],10:[4,5]};
   var idxs=pairMap[gameNum];
   if(!idxs)return null;
