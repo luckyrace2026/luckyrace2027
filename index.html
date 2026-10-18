@@ -2097,33 +2097,86 @@ function updateMatchStats(){
   document.getElementById('prob2').innerHTML=`<span style="color:${p2Prob>=50?'var(--green)':'var(--red)'};font-family:'DM Mono',monospace;font-weight:500">${p2Prob}%</span> <span style="color:var(--text3);font-size:10px">${p2s>p1s?'승리 확률':'역전 확률'}</span>`;
 
   // Hints
+  // elim 라운드에서는 p1=상위시드: 패배시 +50, 승리시 +100 보너스 적용 예정
+  // 힌트 계산 시 이를 반영해 임계값 조정
   const isP1Turn=(t%2===0);
-  // P1 hint
   let h1='', h2='';
-  if(p1s<p2s){
-    const h=calcHint(p1s,p2s,r1,r2,isP1Turn);
-    if(h){
-      if(!h.canOvertake) h1='역전 불가 (숫자 부족)';
-      else h1=`${h.minVal} 이상 → ${h.type}`;
+  if(isElim){
+    // p1=상위시드, p2=하위시드
+    // 최종 점수: p1f = p1s + (p1이기면+100 / p1지면+50), p2f = p2s
+    // ── p1(상위시드) 힌트 ──
+    if(p1s<=p2s){
+      // p1 뒤지거나 동점 → 최종 +50 붙으므로, 실질 상대 점수 = p2s - 50
+      const effP2=p2s-50;
+      if(p1s>effP2){
+        h1='시드 보너스로 현재 역전 상태';
+      } else {
+        const h=calcHint(p1s,effP2,r1,r2,isP1Turn);
+        if(h){
+          if(!h.canOvertake) h1='역전 불가 (숫자 부족)';
+          else h1=`${h.minVal} 이상 → ${h.type}`;
+        }
+      }
+    } else {
+      // p1 앞섬 → 최종 +100. clinch 조건: p1s+X+100 > p2s+100*r2 → 실질 상대 = p2s-100
+      const effP2=p2s-100;
+      if(p1s>effP2||(p1s===effP2&&r2===0)){
+        h1=''; // 이미 clinch
+      } else {
+        const h=calcClinchHint(p1s,effP2,r1,r2);
+        if(h&&h.canClinic){
+          if(h.sure&&h.minVal===1) h1='';
+          else h1=`${h.minVal} 이상 → 승리 확정`;
+        }
+      }
     }
-  } else if(p1s>p2s){
-    const h=calcClinchHint(p1s,p2s,r1,r2);
-    if(h&&h.canClinic){
-      if(h.sure&&h.minVal===1) h1='';
-      else h1=`${h.minVal} 이상 → 승리 확정`;
+    // ── p2(하위시드) 힌트 ──
+    // p2 clinch/역전 시 p1 최종엔 +50(패배위기) 추가됨 → 실질 상대 = p1s+50
+    const effP1=p1s+50;
+    if(p2s<=effP1){
+      if(p2s<p1s||(p2s>=p1s&&p2s<=effP1)){
+        // p2 역전 필요
+        const h=calcHint(p2s,effP1,r2,r1,!isP1Turn);
+        if(h){
+          if(!h.canOvertake) h2='역전 불가 (숫자 부족)';
+          else h2=`${h.minVal} 이상 → ${h.type}`;
+        }
+      }
+    } else {
+      // p2 앞섬이고 effP1보다 큼 → clinch 가능
+      const h=calcClinchHint(p2s,effP1,r2,r1);
+      if(h&&h.canClinic){
+        if(h.sure&&h.minVal===1) h2='';
+        else h2=`${h.minVal} 이상 → 승리 확정`;
+      }
     }
-  }
-  if(p2s<p1s){
-    const h=calcHint(p2s,p1s,r2,r1,!isP1Turn);
-    if(h){
-      if(!h.canOvertake) h2='역전 불가 (숫자 부족)';
-      else h2=`${h.minVal} 이상 → ${h.type}`;
+  } else {
+    // 일반 라운드: 기존 로직 그대로
+    if(p1s<p2s){
+      const h=calcHint(p1s,p2s,r1,r2,isP1Turn);
+      if(h){
+        if(!h.canOvertake) h1='역전 불가 (숫자 부족)';
+        else h1=`${h.minVal} 이상 → ${h.type}`;
+      }
+    } else if(p1s>p2s){
+      const h=calcClinchHint(p1s,p2s,r1,r2);
+      if(h&&h.canClinic){
+        if(h.sure&&h.minVal===1) h1='';
+        else h1=`${h.minVal} 이상 → 승리 확정`;
+      }
     }
-  } else if(p2s>p1s){
-    const h=calcClinchHint(p2s,p1s,r2,r1);
-    if(h&&h.canClinic){
-      if(h.sure&&h.minVal===1) h2='';
-      else h2=`${h.minVal} 이상 → 승리 확정`;
+    if(p2s<p1s){
+      const h=calcHint(p2s,p1s,r2,r1,!isP1Turn);
+      if(h){
+        if(!h.canOvertake) h2='역전 불가 (숫자 부족)';
+        else h2=`${h.minVal} 이상 → ${h.type}`;
+      }
+    } else if(p2s>p1s){
+      const h=calcClinchHint(p2s,p1s,r2,r1);
+      if(h&&h.canClinic){
+        if(h.sure&&h.minVal===1) h2='';
+        else h2=`${h.minVal} 이상 → 승리 확정`;
+      }
     }
   }
   document.getElementById('hint1').textContent=h1;
@@ -4342,8 +4395,8 @@ function renderCurrentMatchBanner(){
   outer: for(let gi=0;gi<S.bracket.length;gi++){
     const bg=S.bracket[gi];
     if(!bg.seeded)continue;
-    let seqCount=0; // 이 bracket group 내 전체 매치 순번
     for(let ri=0;ri<bg.rounds.length;ri++){
+      let seqCount=0; // 라운드 내 순번 (라운드 바뀌면 1부터 재시작)
       for(let mi=0;mi<bg.rounds[ri].matches.length;mi++){
         const m=bg.rounds[ri].matches[mi];
         if(m.p1id&&m.p2id) seqCount++;
