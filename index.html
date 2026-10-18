@@ -1434,8 +1434,9 @@ function calcAlltimeStats(){
     });
     const contrib=contribCount?parseFloat((contribSum/contribCount).toFixed(2)):null;
 
+    const totalPts = parseFloat((pts + wins * 0.5 + draws * 0.25).toFixed(2));
     return {
-      p, pts: parseFloat(pts.toFixed(2)), cumScore, avgScore, wins, draws, losses, g,
+      p, pts: totalPts, cumScore, avgScore, wins, draws, losses, g,
       vrSum: parseFloat(vrSum.toFixed(3)), upsets, upsetVictims,
       firstAvg, lastAvg, ppg, scoreValue: svAvg, contrib, highScore, lowScore
     };
@@ -1565,7 +1566,8 @@ function renderAlltimeTeamTab(){
     cols.forEach(col=>{
       const v=r[col.key];
       const active=col.key===sortKey;
-      const disp=v===null||v===undefined?'-':(typeof v==='number'&&!Number.isInteger(v)?v.toFixed(typeof v==='number'&&col.key==='winRate'?1:2):v);
+      const _td2={pts:1,vrSum:2,winRate:1};
+      const disp=v===null||v===undefined?'-':(col.key in _td2?parseFloat(v).toFixed(_td2[col.key]):(typeof v==='number'&&!Number.isInteger(v)?v.toFixed(2):v));
       html+=`<td style="text-align:right;padding:5px 6px;white-space:nowrap;font-family:'DM Mono',monospace;color:${active?'var(--accent)':'var(--text2)'};font-weight:${active?'700':'400'}">${disp}</td>`;
     });
     html+='</tr>';
@@ -1646,7 +1648,8 @@ function renderAlltimeTab(){
     cols.forEach(col => {
       const v = r[col.key];
       const active = col.key===sortKey;
-      const disp = v===null||v===undefined ? '-' : (typeof v==='number'&&!Number.isInteger(v) ? v.toFixed(2) : v);
+      const _decimals = {pts:1, ppg:2, scoreValue:2, contrib:2, vrSum:2};
+      const disp = v===null||v===undefined ? '-' : (col.key in _decimals ? parseFloat(v).toFixed(_decimals[col.key]) : (typeof v==='number'&&!Number.isInteger(v) ? v.toFixed(2) : v));
       html += `<td style="text-align:right;padding:5px 6px;white-space:nowrap;font-family:'DM Mono',monospace;color:${active?'var(--accent)':'var(--text2)'};font-weight:${active?'700':'400'}">${disp}</td>`;
     });
     html += '</tr>';
@@ -1776,7 +1779,7 @@ function avc(i){return{bg:AB[i%AB.length],tx:AT[i%AT.length]};}
 let _uidCounter=0;
 function uid(){return 'x'+Date.now()+'_'+(++_uidCounter)+'_'+Math.floor(Math.random()*99999);}
 function sp(id){return S.players.find(p=>p.id===id);}
-function fmt(v){return v==null?'0':(v%1===0?v.toString():v.toFixed(1));}
+function fmt(v){return v==null?'0.0':parseFloat(v).toFixed(1);}
 function fmtVR(v){return(v==null?0:v).toFixed(4);}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 
@@ -3747,6 +3750,10 @@ function detailSpecial(){
       '.sp-ah-num{font-family:"DM Mono",monospace;font-size:11px;color:var(--text3);width:22px;flex-shrink:0}',
       '.sp-ah-name{flex:1;font-weight:500}',
       '.sp-ah-sk{font-size:10px;color:var(--text3);margin-left:auto}',
+      '.sp-ah-btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}',
+      '.sp-ah-btn{padding:5px 12px;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s}',
+      '.sp-ah-btn:hover{border-color:var(--accent);color:var(--accent)}',
+      '.sp-ah-btn-active{background:var(--accent)!important;border-color:var(--accent)!important;color:#0e0f11!important;font-weight:600}',
       '@media(max-width:480px){.sp-grid{grid-template-columns:repeat(2,1fr)}}'
     ].join('');
     document.head.appendChild(st);
@@ -3880,7 +3887,7 @@ function detailSpecial(){
   html+='<div class="sp-sec">🏅 경기 종료 시점 최다 승점</div><div class="sp-grid">';
   [2,3,4,5,6,7,8,9,10].forEach(function(n){
     var r=pg[n],t=r.top,p=r.prev;
-    html+=card(n+'경기 종료 시점',t,t?t.pts+'pt':'',t?t.sk:'',p?nmt(p.pid)+', '+p.sk+'시즌, '+p.pts+'pt':null);
+    html+=card(n+'경기 종료 시점',t,t?parseFloat(t.pts).toFixed(1)+'pt':'',t?t.sk:'',p?nmt(p.pid)+', '+p.sk+'시즌, '+parseFloat(p.pts).toFixed(1)+'pt':null);
   });
   html+='</div>';
 
@@ -6714,7 +6721,7 @@ function renderPOLeagueTable(playerIds, matchMap, stats, sorted, title, accentCo
         <span style="color:var(--text)">${p.name}</span>
         <span style="font-size:10px;color:var(--text3);margin-left:2px">${p.team||''}</span>
       </div></td>
-      <td style="text-align:center;padding:4px 6px;font-weight:600;color:${isAccent?'var(--accent)':'var(--text2)'}">${s.pts}</td>
+      <td style="text-align:center;padding:4px 6px;font-weight:600;color:${isAccent?'var(--accent)':'var(--text2)'}">${parseFloat(s.pts).toFixed(1)}</td>
       <td style="text-align:center;padding:4px 6px;color:var(--text2)">${avg}</td>
       <td style="text-align:center;padding:4px 6px;color:var(--text3)">${s.games}</td>
     </tr>`;
@@ -7327,8 +7334,4 @@ function startTeamPOGame(phase,setIdx,gameIdx){
 
 </script>
 </body>
-</html      '.sp-ah-btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}',
-      '.sp-ah-btn{padding:5px 12px;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s}',
-      '.sp-ah-btn:hover{border-color:var(--accent);color:var(--accent)}',
-      '.sp-ah-btn-active{background:var(--accent)!important;border-color:var(--accent)!important;color:#0e0f11!important;font-weight:600}',
->
+</html>
