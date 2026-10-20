@@ -4000,7 +4000,13 @@ function gotoTab(name,btn){
     document.querySelectorAll('#tab-alltime .inner-tab').forEach((t,i)=>t.classList.toggle('active',i===0));
     renderAlltimeTab();
   }
-  if(name==='playoff'){_poView='all';renderPlayoff();}
+  if(name==='playoff'){
+    _poView='all';
+    // inner-tab 첫 번째(선수 플레이오프) 활성화 보장
+    document.querySelectorAll('#tab-playoff .inner-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
+    document.querySelectorAll('#tab-playoff .inner-tab').forEach((t,i)=>t.classList.toggle('active',i===0));
+    renderPlayoff();
+  }
   if(name==='players'){ensureEntries();renderPlayers();}
 }
 function switchSub(name,btn){
@@ -4011,8 +4017,9 @@ function switchSub(name,btn){
   if(name==='manual'){renderManualHistory();refreshMSelects();}
 }
 function switchInner(name,btn){
-  document.querySelectorAll('.inner-btn').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('.inner-tab').forEach(t=>t.classList.remove('active'));
+  const parent=btn.closest('.tab')||document;
+  parent.querySelectorAll('.inner-btn').forEach(b=>b.classList.remove('active'));
+  parent.querySelectorAll('.inner-tab').forEach(t=>t.classList.remove('active'));
   btn.classList.add('active');document.getElementById(name).classList.add('active');
   if(name==='player-rank')renderPRank();
   if(name==='team-rank')renderTRank();
@@ -6439,12 +6446,35 @@ let poTeamSel={teamName:null,matchKey:null,chosen:[]};
 function switchPoInner(name,btn){
   document.querySelectorAll('#tab-playoff .inner-btn').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('#tab-playoff .inner-tab').forEach(t=>t.classList.remove('active'));
-  btn.classList.add('active');document.getElementById(name).classList.add('active');
+  btn.classList.add('active');
+  const tabEl=document.getElementById(name);
+  if(tabEl) tabEl.classList.add('active');
+  if(name==='po-team'){
+    try{renderTeamPO();}catch(e){
+      console.error('renderTeamPO error',e);
+      const el=document.getElementById('po-team-content');
+      if(el) el.innerHTML='<div style="padding:16px;color:red;font-size:12px">오류: '+e.message+'</div>';
+    }
+  } else if(name==='po-player'){
+    try{renderPlayerPO();}catch(e){
+      console.error('renderPlayerPO error',e);
+      const el=document.getElementById('po-player-content');
+      if(el) el.innerHTML='<div style="padding:16px;color:red;font-size:12px">오류: '+e.message+'</div>';
+    }
+  }
 }
 
 function renderPlayoff(){
-  renderPlayerPO();
-  renderTeamPO();
+  try{renderPlayerPO();}catch(e){
+    console.error('renderPlayerPO error',e);
+    const el=document.getElementById('po-player-content');
+    if(el) el.innerHTML='<div style="padding:16px;color:red;font-size:12px">오류: '+e.message+'</div>';
+  }
+  try{renderTeamPO();}catch(e){
+    console.error('renderTeamPO error',e);
+    const el=document.getElementById('po-team-content');
+    if(el) el.innerHTML='<div style="padding:16px;color:red;font-size:12px">오류: '+e.message+'</div>';
+  }
 }
 
 // ── PLAYER PLAYOFF ──
@@ -6992,9 +7022,16 @@ function shuffleTeamPlayers(phase){
 }
 
 function renderTeamPO(){
-  const el=document.getElementById('po-team-content');
-  if(!el) return;
-  if(!S.teamPO){
+  let el=document.getElementById('po-team-content');
+  if(!el){
+    // po-team-content가 없으면 po-team div 안에 동적 생성
+    const parent=document.getElementById('po-team');
+    if(!parent) return;
+    el=document.createElement('div');
+    el.id='po-team-content';
+    parent.appendChild(el);
+  }
+  if(!S||!S.teamPO){
     el.innerHTML='<div style="text-align:center;padding:24px;color:var(--text3)">대진 편성 버튼을 눌러 팀 플레이오프를 시작하세요.</div>';
     return;
   }
@@ -7017,6 +7054,8 @@ function renderTeamPO(){
   ['r1','r2','r3'].forEach(function(phase){
     const m=po.matches[phase];
     if(!m||!m.teamB||!m.teamA) return;
+    if(!m.sets) m.sets=[];
+    if(!m.players) m.players={};
     const tcA=teamColor(m.teamA)||{bg:'var(--bg3)',tx:'var(--text2)'};
     const tcB=teamColor(m.teamB)||{bg:'var(--bg3)',tx:'var(--text2)'};
     // 팀PO 전용 강조색 (기존 아이콘/배지 색상과 독립)
